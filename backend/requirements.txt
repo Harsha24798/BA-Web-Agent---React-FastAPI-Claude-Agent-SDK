@@ -1,0 +1,33 @@
+# Web framework
+fastapi>=0.111
+uvicorn[standard]>=0.30
+python-multipart>=0.0.9
+
+# Claude Agent SDK (wraps the Claude Code engine; needs Node + @anthropic-ai/claude-code CLI)
+claude-agent-sdk>=0.1.0
+
+# Data / ORM
+SQLAlchemy>=2.0
+pydantic[email]>=2.7
+pydantic-settings>=2.3
+
+# Auth
+python-jose[cryptography]>=3.3
+argon2-cffi>=23.1
+
+# Validation / templating
+jsonschema>=4.22
+Jinja2>=3.1
+
+# Document ingestion
+pdfplumber>=0.11
+pypdf>=4.2
+python-docx>=1.1
+openpyxl>=3.1
+
+# SRS rendering (docx via python-docx above; PDF via one of these)
+# WeasyPrint gives the nicest output but needs native libs on Windows.
+# If it won't install, comment it out and use reportlab (srs_output.py falls back automatically).
+weasyprint>=62.0
+reportlab>=4.2
+markdown>=3.6

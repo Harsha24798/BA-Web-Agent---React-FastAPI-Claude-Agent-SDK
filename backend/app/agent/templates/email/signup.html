@@ -1,0 +1,10 @@
+{% extends "_layout.html" %}
+{% block content %}
+  <h2 style="margin:0 0 12px;font-size:20px;">New user pending approval</h2>
+  <p style="margin:0 0 8px;">A new user has registered and is waiting for approval:</p>
+  <table role="presentation" cellpadding="0" cellspacing="0" style="margin:12px 0;font-size:15px;">
+    <tr><td style="padding:2px 0;color:#6b7280;">Name:</td><td style="padding:2px 0 2px 12px;font-weight:600;">{{ full_name }}</td></tr>
+    <tr><td style="padding:2px 0;color:#6b7280;">Email:</td><td style="padding:2px 0 2px 12px;font-weight:600;">{{ email }}</td></tr>
+  </table>
+  {% with url=admin_url, label="Review in Admin → Users" %}{% include "_button.html" %}{% endwith %}
+{% endblock %}

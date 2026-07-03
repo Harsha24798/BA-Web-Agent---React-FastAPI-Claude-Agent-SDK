@@ -1,0 +1,9 @@
+Your SRS is ready
+
+Project: {{ project_name }}
+Version: v{{ version_no }}
+Model:   {{ model }}
+
+{{ summary }}
+
+Open the project to download: {{ project_url }}

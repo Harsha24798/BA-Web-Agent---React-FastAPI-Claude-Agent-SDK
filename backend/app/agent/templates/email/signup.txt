@@ -1,0 +1,6 @@
+New user pending approval
+
+Name:  {{ full_name }}
+Email: {{ email }}
+
+Review and approve in the admin panel: {{ admin_url }}

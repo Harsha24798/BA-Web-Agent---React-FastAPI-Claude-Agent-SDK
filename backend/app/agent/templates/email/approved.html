@@ -1,0 +1,16 @@
+{% extends "_layout.html" %}
+{% block content %}
+  {% if reset %}
+    <h2 style="margin:0 0 12px;font-size:20px;">Reset your password</h2>
+    <p style="margin:0 0 8px;">Hi {{ full_name }}, use the button below to set a new password.</p>
+  {% else %}
+    <h2 style="margin:0 0 12px;font-size:20px;">Your account is approved 🎉</h2>
+    <p style="margin:0 0 8px;">Hi {{ full_name }}, your BA Agent account has been approved.
+       Set your password to get started.</p>
+  {% endif %}
+  {% with url=link, label="Set your password" %}{% include "_button.html" %}{% endwith %}
+  <p style="margin:12px 0 0;color:#6b7280;font-size:13px;">
+    This link expires in {{ ttl_hours }} hours and can be used once. If it expires, ask an admin to
+    resend it.
+  </p>
+{% endblock %}

@@ -1,0 +1,6 @@
+{% if reset %}Reset your password{% else %}Your BA Agent account is approved{% endif %}
+
+Hi {{ full_name }},
+
+Set your password using this link (expires in {{ ttl_hours }} hours, single use):
+{{ link }}
