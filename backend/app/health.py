@@ -1,10 +1,8 @@
-"""Startup health checks: Node.js, Claude Code CLI, and API key presence."""
+"""Startup health checks: Node.js and the Claude Code CLI."""
 from __future__ import annotations
 
 import shutil
 import subprocess
-
-from app.config import settings
 
 
 class HealthError(RuntimeError):
@@ -24,11 +22,12 @@ def _try_version(args: list[str]) -> bool:
 
 
 def check_environment(strict: bool = True) -> list[str]:
-    """Return a list of problems. If strict and any exist, raise HealthError."""
-    problems: list[str] = []
+    """Return a list of hard problems. If strict and any exist, raise HealthError.
 
-    if not settings.anthropic_api_key:
-        problems.append("ANTHROPIC_API_KEY is not set (put it in backend/.env).")
+    The Anthropic API key is intentionally NOT checked here — an admin can set it at runtime
+    in Settings, and generation is gated on it separately.
+    """
+    problems: list[str] = []
 
     if not _cmd_exists("node"):
         problems.append("Node.js not found on PATH. Install Node 18+ (https://nodejs.org).")

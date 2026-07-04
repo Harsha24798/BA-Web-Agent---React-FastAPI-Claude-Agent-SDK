@@ -75,6 +75,10 @@ class Project(Base):
     versions: Mapped[list["SrsVersion"]] = relationship(
         back_populates="project", cascade="all, delete-orphan"
     )
+    # So deleting a project also removes its generation jobs (FK would otherwise block the delete).
+    jobs: Mapped[list["GenerationJob"]] = relationship(
+        cascade="all, delete-orphan"
+    )
 
 
 class Document(Base):
@@ -198,6 +202,33 @@ class LlmModel(Base):
     is_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     is_default: Mapped[bool] = mapped_column(Boolean, default=False)
     sort_order: Mapped[int] = mapped_column(Integer, default=0)
+
+
+class AppSettings(Base):
+    """Single-row table (id='singleton') holding admin-managed runtime settings."""
+
+    __tablename__ = "app_settings"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default="singleton")
+
+    # Anthropic
+    anthropic_key_ct: Mapped[str | None] = mapped_column(Text, nullable=True)  # encrypted
+    anthropic_status: Mapped[str] = mapped_column(String, default="unknown")  # unknown|connected|failed
+    anthropic_checked_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    anthropic_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    # Mail server (SMTP)
+    smtp_host: Mapped[str] = mapped_column(String, default="")
+    smtp_port: Mapped[int] = mapped_column(Integer, default=587)
+    smtp_user: Mapped[str] = mapped_column(String, default="")
+    smtp_pass_ct: Mapped[str | None] = mapped_column(Text, nullable=True)  # encrypted
+    smtp_from: Mapped[str] = mapped_column(String, default="")
+    smtp_status: Mapped[str] = mapped_column(String, default="unknown")
+    smtp_checked_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    smtp_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    updated_by: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
 
 
 class UserModel(Base):

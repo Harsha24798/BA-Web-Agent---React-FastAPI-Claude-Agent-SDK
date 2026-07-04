@@ -14,6 +14,7 @@ pydantic-settings>=2.3
 # Auth
 python-jose[cryptography]>=3.3
 argon2-cffi>=23.1
+cryptography>=42.0  # Fernet encryption for stored secrets (Anthropic key, SMTP password)
 
 # Validation / templating
 jsonschema>=4.22
@@ -25,9 +26,10 @@ pypdf>=4.2
 python-docx>=1.1
 openpyxl>=3.1
 
-# SRS rendering (docx via python-docx above; PDF via one of these)
-# WeasyPrint gives the nicest output but needs native libs on Windows.
-# If it won't install, comment it out and use reportlab (srs_output.py falls back automatically).
-weasyprint>=62.0
+# SRS rendering: DOCX via python-docx (above); PDF via reportlab (pure-Python, always installs).
 reportlab>=4.2
 markdown>=3.6
+# Optional, nicer PDF styling. Needs native GTK/Pango libs and often fails to install on
+# Windows, so it is NOT installed by default — srs_output.py automatically uses reportlab when
+# WeasyPrint is absent. To opt in: `pip install weasyprint`.
+# weasyprint>=62.0

@@ -1,5 +1,5 @@
-import { FormEvent, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { FormEvent, useEffect, useState } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
 import { toast } from "../lib/toast";
 import { Button, Card, Input, Label } from "../components/ui";
@@ -7,9 +7,14 @@ import { Button, Card, Input, Label } from "../components/ui";
 export default function Login() {
   const { login } = useAuth();
   const nav = useNavigate();
+  const [params] = useSearchParams();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (params.get("expired")) toast.info("Your session expired. Please sign in again.");
+  }, []);
 
   async function submit(e: FormEvent) {
     e.preventDefault();

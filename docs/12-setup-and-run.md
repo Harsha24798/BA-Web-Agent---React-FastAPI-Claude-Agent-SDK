@@ -70,6 +70,9 @@ npm run dev        # http://localhost:5173
 ## 3. First use
 
 1. Open http://localhost:5173 and **log in as the seeded admin** (`ADMIN_EMAIL`/`ADMIN_PASSWORD`).
+1b. Admin → **Settings**: paste your **Anthropic API key** (required before anyone can generate) and
+   optionally configure the **mail server** — both have a **Test connection** button and status badge.
+   (These can also be seeded via `.env` as a fallback, but the UI is the recommended place.)
 2. Admin → **Models**: **add at least one model** (e.g. `claude-sonnet-5`) — none are seeded.
    Optionally tune **Master Prompt** / **Template** (named library: create/edit/activate, import .md)
    and **Tools**.

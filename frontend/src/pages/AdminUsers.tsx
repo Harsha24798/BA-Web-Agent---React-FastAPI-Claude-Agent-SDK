@@ -15,12 +15,6 @@ function StatusPill({ status }: { status: string }) {
   return <span className={`rounded-full px-2 py-0.5 text-xs font-medium capitalize ${styles[status] || styles.rejected}`}>{status}</span>;
 }
 
-function extractLink(detail: string): { message: string; link: string | null } {
-  const idx = detail.indexOf("Link:");
-  if (idx === -1) return { message: detail, link: null };
-  return { message: detail.slice(0, idx).trim(), link: detail.slice(idx + 5).trim() };
-}
-
 export default function AdminUsers() {
   const [users, setUsers] = useState<User[]>([]);
   const [models, setModels] = useState<LlmModel[]>([]);
@@ -30,6 +24,7 @@ export default function AdminUsers() {
   const [editUser, setEditUser] = useState<User | null>(null);
   const [editForm, setEditForm] = useState({ full_name: "", email: "", password: "" });
   const [linkDialog, setLinkDialog] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
 
   async function load() { setUsers(await apiGet<User[]>("/users")); }
   useEffect(() => {
@@ -41,9 +36,8 @@ export default function AdminUsers() {
     setBusy(key);
     try {
       const r = await apiPost(path, body);
-      const { message, link } = extractLink(r?.detail || ok);
-      toast.success(message || ok);
-      if (link) setLinkDialog(link);
+      toast.success(r?.detail || ok);
+      if (r?.link) setLinkDialog(r.link); // shown only when SMTP is off (backend returns it then)
       await load();
     } catch (e: any) {
       toast.error(e.message);
@@ -64,11 +58,13 @@ export default function AdminUsers() {
   }
 
   async function saveModels() {
-    if (!modelUser) return;
-    await withToast(() => apiPut(`/users/${modelUser.id}/models`, { model_ids: grants }), {
+    if (!modelUser || saving) return;
+    setSaving(true);
+    const r = await withToast(() => apiPut(`/users/${modelUser.id}/models`, { model_ids: grants }), {
       success: "Model access updated.", error: "Save failed",
     });
-    setModelUser(null);
+    setSaving(false);
+    if (r) setModelUser(null);
   }
 
   function openEdit(u: User) {
@@ -77,12 +73,14 @@ export default function AdminUsers() {
   }
 
   async function saveEdit() {
-    if (!editUser) return;
+    if (!editUser || saving) return;
+    setSaving(true);
     const body: any = { full_name: editForm.full_name, email: editForm.email };
     if (editForm.password) body.password = editForm.password;
     const r = await withToast(() => apiPatch(`/users/${editUser.id}`, body), {
       success: "User updated.", error: "Update failed",
     });
+    setSaving(false);
     if (r) { setEditUser(null); load(); }
   }
 
@@ -180,7 +178,7 @@ export default function AdminUsers() {
         </div>
         <div className="mt-4 flex justify-end gap-2">
           <Button variant="secondary" onClick={() => setModelUser(null)}>Cancel</Button>
-          <Button onClick={saveModels}>Save</Button>
+          <Button onClick={saveModels} disabled={saving}>Save</Button>
         </div>
       </Modal>
 
@@ -196,7 +194,7 @@ export default function AdminUsers() {
           </div>
           <div className="flex justify-end gap-2">
             <Button variant="secondary" onClick={() => setEditUser(null)}>Cancel</Button>
-            <Button onClick={saveEdit}>Save</Button>
+            <Button onClick={saveEdit} disabled={saving}>Save</Button>
           </div>
         </div>
       </Modal>

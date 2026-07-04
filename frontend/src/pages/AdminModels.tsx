@@ -10,11 +10,16 @@ const empty = { model_id: "", display_name: "", description: "", is_enabled: tru
 
 export default function AdminModels() {
   const [models, setModels] = useState<LlmModel[]>([]);
+  const [loaded, setLoaded] = useState(false);
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<LlmModel | null>(null);
   const [form, setForm] = useState({ ...empty });
+  const [saving, setSaving] = useState(false);
 
-  async function load() { setModels(await apiGet<LlmModel[]>("/admin/models")); }
+  async function load() {
+    setModels(await apiGet<LlmModel[]>("/admin/models"));
+    setLoaded(true);
+  }
   useEffect(() => { load(); }, []);
 
   async function patch(m: LlmModel, changes: Partial<LlmModel>) {
@@ -31,10 +36,13 @@ export default function AdminModels() {
   }
 
   async function save() {
+    if (saving) return;
+    setSaving(true);
     const req = editing
       ? apiPut(`/admin/models/${editing.id}`, form)
       : apiPost("/admin/models", form);
     const r = await withToast(() => req, { success: editing ? "Model updated." : "Model added.", error: "Save failed" });
+    setSaving(false);
     if (r) { setOpen(false); load(); }
   }
 
@@ -50,7 +58,7 @@ export default function AdminModels() {
         <h1 className="text-xl font-semibold">LLM Models</h1>
         <Button onClick={openAdd}><Plus className="h-4 w-4" /> Add model</Button>
       </div>
-      {models.length === 0 && (
+      {loaded && models.length === 0 && (
         <Card className="mb-4 p-4 text-sm text-slate-500">
           No models yet. Add at least one so users can generate SRS documents.
         </Card>
@@ -89,7 +97,7 @@ export default function AdminModels() {
             <span className="flex items-center gap-2 text-sm"><Toggle checked={form.is_enabled} onChange={(v) => setForm({ ...form, is_enabled: v })} /> Enabled</span>
             <span className="flex items-center gap-2 text-sm"><Toggle checked={form.is_default} onChange={(v) => setForm({ ...form, is_default: v })} /> Default</span>
           </div>
-          <div className="flex justify-end gap-2"><Button variant="secondary" onClick={() => setOpen(false)}>Cancel</Button><Button onClick={save}>{editing ? "Save" : "Add"}</Button></div>
+          <div className="flex justify-end gap-2"><Button variant="secondary" onClick={() => setOpen(false)}>Cancel</Button><Button onClick={save} disabled={saving}>{editing ? "Save" : "Add"}</Button></div>
         </div>
       </Modal>
     </Layout>

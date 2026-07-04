@@ -55,7 +55,10 @@ export function NamedConfigManager({ endpoint, help, noun }: { endpoint: string;
   }
 
   async function activate(it: NamedConfig) {
+    if (busy) return;
+    setBusy(true);
     const r = await withToast(() => apiPost(`${endpoint}/${it.id}/activate`), { success: `Activated "${it.name}".`, error: "Activate failed" });
+    setBusy(false);
     if (r) load(it.id);
   }
 
@@ -127,7 +130,8 @@ export function NamedConfigManager({ endpoint, help, noun }: { endpoint: string;
                 <div className="mt-2 flex gap-1.5">
                   <button
                     onClick={() => activate(it)}
-                    className="inline-flex items-center gap-1 rounded-full bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-700 transition hover:bg-brand-100"
+                    disabled={busy}
+                    className="inline-flex items-center gap-1 rounded-full bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-700 transition hover:bg-brand-100 disabled:opacity-50"
                   >
                     <PlayCircle className="h-3.5 w-3.5" /> Activate
                   </button>

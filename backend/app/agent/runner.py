@@ -41,34 +41,45 @@ async def run_agent(
     text_chunks: list[str] = []
     session_id: str | None = None
 
-    async for message in query(prompt=run_prompt, options=options):
-        cls = type(message).__name__
+    # Hold the async generator so we can close it deterministically (reaping the Claude Code CLI
+    # child process) on cancel/error, instead of relying on garbage collection.
+    stream = query(prompt=run_prompt, options=options)
+    try:
+        async for message in stream:
+            cls = type(message).__name__
 
-        # capture session id whenever present
-        sid = getattr(message, "session_id", None)
-        if sid:
-            session_id = sid
+            # capture session id whenever present
+            sid = getattr(message, "session_id", None)
+            if sid:
+                session_id = sid
 
-        if cls == "AssistantMessage":
-            for block in getattr(message, "content", []) or []:
-                bname = type(block).__name__
-                if bname == "TextBlock":
-                    txt = getattr(block, "text", "") or ""
-                    text_chunks.append(txt)
-                    if txt.strip():
-                        await on_event("text", {"text": txt})
-                elif bname == "ToolUseBlock":
-                    tool = getattr(block, "name", "") or ""
-                    tinput = getattr(block, "input", {}) or {}
-                    await on_event("tool_use", {"name": tool, "input": tinput})
-        elif cls in ("StreamEvent", "PartialAssistantMessage"):
-            await on_event("partial", {})
-        elif cls == "ResultMessage":
-            if getattr(message, "is_error", False):
-                raise AgentError(getattr(message, "result", None) or "Agent returned an error")
-            result_text = getattr(message, "result", None)
-            if isinstance(result_text, str):
-                text_chunks.append(result_text)
+            if cls == "AssistantMessage":
+                for block in getattr(message, "content", []) or []:
+                    bname = type(block).__name__
+                    if bname == "TextBlock":
+                        txt = getattr(block, "text", "") or ""
+                        text_chunks.append(txt)
+                        if txt.strip():
+                            await on_event("text", {"text": txt})
+                    elif bname == "ToolUseBlock":
+                        tool = getattr(block, "name", "") or ""
+                        tinput = getattr(block, "input", {}) or {}
+                        await on_event("tool_use", {"name": tool, "input": tinput})
+            elif cls in ("StreamEvent", "PartialAssistantMessage"):
+                await on_event("partial", {})
+            elif cls == "ResultMessage":
+                if getattr(message, "is_error", False):
+                    raise AgentError(getattr(message, "result", None) or "Agent returned an error")
+                result_text = getattr(message, "result", None)
+                if isinstance(result_text, str):
+                    text_chunks.append(result_text)
+    finally:
+        aclose = getattr(stream, "aclose", None)
+        if aclose is not None:
+            try:
+                await aclose()
+            except Exception:
+                pass
 
     full = "\n".join(text_chunks)
     data = _extract_json(full)

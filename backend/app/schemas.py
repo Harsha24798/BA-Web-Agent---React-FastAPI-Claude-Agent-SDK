@@ -46,6 +46,7 @@ class TokenOut(BaseModel):
 
 class MessageOut(BaseModel):
     detail: str
+    link: str | None = None  # e.g. a set-password link to show when SMTP is off
 
 
 # ---------- users (admin) ----------
@@ -195,3 +196,33 @@ class ToolOut(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+# ---------- app settings (admin) ----------
+class AnthropicKeyIn(BaseModel):
+    key: str = Field(min_length=1, max_length=400)
+
+
+class SmtpIn(BaseModel):
+    host: str = Field(default="", max_length=300)
+    port: int = 587
+    user: str = Field(default="", max_length=300)
+    password: str | None = None  # omit/null = keep the stored password unchanged
+    from_addr: str = Field(default="", max_length=300)
+
+
+class SettingsOut(BaseModel):
+    anthropic_key_set: bool
+    anthropic_key_hint: str | None = None
+    anthropic_status: str
+    anthropic_checked_at: datetime | None = None
+    anthropic_error: str | None = None
+
+    smtp_host: str
+    smtp_port: int
+    smtp_user: str
+    smtp_pass_set: bool
+    smtp_from: str
+    smtp_status: str
+    smtp_checked_at: datetime | None = None
+    smtp_error: str | None = None

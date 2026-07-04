@@ -1,6 +1,8 @@
 """Document upload / list / delete with extraction to Markdown."""
 from __future__ import annotations
 
+import asyncio
+import uuid
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
@@ -35,6 +37,10 @@ def _refresh_index(db: Session, project_id: str) -> None:
     ingestion.rebuild_index(project_id, entries)
 
 
+MAX_UPLOAD_MB = 25
+MAX_FILES_PER_REQUEST = 20
+
+
 @router.post("/{project_id}/documents", response_model=list[DocumentOut])
 async def upload_documents(
     project_id: str,
@@ -44,6 +50,9 @@ async def upload_documents(
     db: Session = Depends(get_db),
 ):
     project = _get_project(db, project_id)
+    if len(files) > MAX_FILES_PER_REQUEST:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST,
+                            f"Too many files at once (max {MAX_FILES_PER_REQUEST}).")
     upload_dir = settings.uploads_dir / project_id
     upload_dir.mkdir(parents=True, exist_ok=True)
     ctx_dir = ingestion.workspace_context_dir(project_id)
@@ -56,17 +65,26 @@ async def upload_documents(
                 status.HTTP_400_BAD_REQUEST,
                 f"Unsupported file type '{ext}'. Allowed: {', '.join(sorted(ingestion.SUPPORTED))}",
             )
+        data = await uf.read()
+        if len(data) > MAX_UPLOAD_MB * 1024 * 1024:
+            raise HTTPException(
+                status.HTTP_400_BAD_REQUEST,
+                f"'{uf.filename}' exceeds the {MAX_UPLOAD_MB} MB limit.",
+            )
         safe_name = ingestion.safe_slug(uf.filename or "file")
         stored_path = upload_dir / safe_name
-        data = await uf.read()
         stored_path.write_bytes(data)
 
-        md = extract_md = ingestion.extract_to_markdown(stored_path)
-        extracted_path = ctx_dir / f"{Path(safe_name).stem}.md"
+        # Extraction (pdfplumber/openpyxl/python-docx) is blocking — keep it off the event loop.
+        md = extract_md = await asyncio.to_thread(ingestion.extract_to_markdown, stored_path)
+        # Unique per document id so files that share a stem (spec.pdf vs spec.docx) don't collide.
+        doc_id = str(uuid.uuid4())
+        extracted_path = ctx_dir / f"{Path(safe_name).stem}-{doc_id[:8]}.md"
         header = f"# Source: {uf.filename}\n\n> Category: {category}\n\n"
         extracted_path.write_text(header + md, encoding="utf-8")
 
         doc = Document(
+            id=doc_id,
             project_id=project_id,
             original_filename=uf.filename or safe_name,
             stored_path=str(stored_path),

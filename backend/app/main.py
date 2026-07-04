@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import logging
-import os
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -17,31 +17,25 @@ from app.health import HealthError, check_environment
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("ba-agent")
 
-app = FastAPI(title="BA Agent WebApp", version="1.0.0")
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=settings.cors_list,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-
-@app.on_event("startup")
-def on_startup() -> None:
+def _startup() -> None:
     settings.ensure_dirs()
 
-    # Make the API key available to the Claude Agent SDK / CLI subprocess.
-    if settings.anthropic_api_key:
-        os.environ["ANTHROPIC_API_KEY"] = settings.anthropic_api_key
-
-    # Health checks — fail loudly if the environment is not ready.
+    # Health checks — fail loudly if Node / the Claude Code CLI are missing. The Anthropic API
+    # key is NOT required at boot: an admin can set it later in Settings; generation is gated on it.
     try:
         check_environment(strict=True)
     except HealthError as e:
         logger.error(str(e))
         raise
+
+    # Warn loudly about insecure defaults left unchanged.
+    if settings.jwt_secret in ("", "change-me", "change-me-to-a-long-random-string"):
+        logger.warning("SECURITY: JWT_SECRET is the default value — set a long random JWT_SECRET "
+                       "in backend/.env before real use (tokens are otherwise forgeable).")
+    if settings.admin_password in ("", "ChangeMe123!"):
+        logger.warning("SECURITY: ADMIN_PASSWORD is the default — change the seeded admin's "
+                       "password after first login.")
 
     init_db()
 
@@ -55,7 +49,28 @@ def on_startup() -> None:
         )
         db.commit()
 
+    # Make the effective Anthropic key (DB setting, else .env) available to the agent subprocess.
+    from app.services.settings_service import apply_key_to_env
+    apply_key_to_env()
+
     logger.info("BA Agent backend started.")
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    _startup()
+    yield
+
+
+app = FastAPI(title="BA Agent WebApp", version="1.0.0", lifespan=lifespan)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.cors_list,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 @app.get("/health")
@@ -72,6 +87,7 @@ from app.api import (  # noqa: E402
     generation,
     models,
     projects,
+    settings as settings_api,
     srs,
     storage,
     streaming,
@@ -88,3 +104,4 @@ app.include_router(streaming.router)
 app.include_router(srs.router)
 app.include_router(storage.router)
 app.include_router(agent_config.router)
+app.include_router(settings_api.router)

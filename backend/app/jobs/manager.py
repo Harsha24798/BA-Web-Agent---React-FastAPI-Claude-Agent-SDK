@@ -14,6 +14,8 @@ class JobManager:
     def __init__(self) -> None:
         self._tasks: dict[str, asyncio.Task] = {}
         self._subscribers: dict[str, list[asyncio.Queue]] = {}
+        # Last (phase, percent, activity) seen per job — used to drop duplicate progress events.
+        self._last_progress: dict[str, tuple] = {}
 
     # ----- pub/sub -----
     def subscribe(self, job_id: str) -> asyncio.Queue:
@@ -27,6 +29,15 @@ class JobManager:
             subs.remove(q)
 
     async def publish(self, job_id: str, event: dict, *, persist: bool = True) -> None:
+        # Drop no-op progress events: a token stream fires many identical
+        # (phase, percent, activity) updates — persisting/broadcasting each is pure churn.
+        if event.get("type") == "progress":
+            key = (event.get("phase"), event.get("percent"), event.get("current_activity"))
+            if self._last_progress.get(job_id) == key:
+                return
+            self._last_progress[job_id] = key
+        if event.get("type") == "done":
+            self._last_progress.pop(job_id, None)
         if persist:
             self._persist(job_id, event)
         for q in list(self._subscribers.get(job_id, [])):

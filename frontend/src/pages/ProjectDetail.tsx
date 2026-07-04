@@ -1,12 +1,12 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { Download, FileText, Trash2, Sparkles, RefreshCw } from "lucide-react";
-import { apiDelete, apiGet, apiPost, downloadUrl } from "../lib/api";
+import { AlertTriangle, Download, FileText, Trash2, Sparkles, RefreshCw } from "lucide-react";
+import { apiDelete, apiGet, apiPost, downloadFile } from "../lib/api";
 import { toast, withToast } from "../lib/toast";
-import type { Job, ProjectDetail as PD } from "../lib/types";
+import type { DocumentItem, Job, ProjectDetail as PD } from "../lib/types";
 import { useAuth } from "../auth/AuthContext";
 import { Layout } from "../components/Layout";
-import { Button, Card, Spinner } from "../components/ui";
+import { Button, Card, Modal, Spinner } from "../components/ui";
 import { HostBadge, StatusBadge, UploadBadge } from "../components/StatusBadge";
 import { FileUpload } from "../components/FileUpload";
 import { ModelSelect } from "../components/ModelSelect";
@@ -21,6 +21,8 @@ export default function ProjectDetail() {
   const [model, setModel] = useState("");
   const [jobId, setJobId] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
+  const [docToDelete, setDocToDelete] = useState<DocumentItem | null>(null);
+  const [downloading, setDownloading] = useState(false);
 
   async function load() {
     try {
@@ -60,11 +62,24 @@ export default function ProjectDetail() {
     setJobId(null);
   }
 
-  async function removeDoc(docId: string) {
-    await withToast(() => apiDelete(`/projects/${id}/documents/${docId}`), {
+  async function confirmRemoveDoc() {
+    if (!docToDelete) return;
+    await withToast(() => apiDelete(`/projects/${id}/documents/${docToDelete.id}`), {
       success: "Document deleted.", error: "Delete failed",
     });
+    setDocToDelete(null);
     load();
+  }
+
+  async function download(versionNo: number, fmt: string) {
+    setDownloading(true);
+    try {
+      await downloadFile(`/projects/${id}/versions/${versionNo}/download/${fmt}`, `srs-v${versionNo}.${fmt}`);
+    } catch (e: any) {
+      toast.error(e.message);
+    } finally {
+      setDownloading(false);
+    }
   }
 
   async function deleteProject() {
@@ -111,7 +126,7 @@ export default function ProjectDetail() {
                     <p className="text-xs text-slate-400">{(d.size_bytes / 1024).toFixed(0)} KB</p>
                   </div>
                 </div>
-                <button className="text-slate-400 hover:text-red-600" onClick={() => removeDoc(d.id)}>
+                <button className="text-slate-400 hover:text-red-600" onClick={() => setDocToDelete(d)}>
                   <Trash2 className="h-4 w-4" />
                 </button>
               </div>
@@ -151,9 +166,10 @@ export default function ProjectDetail() {
               <h3 className="mb-2 text-sm font-semibold text-slate-700">Latest SRS — v{v}</h3>
               <div className="flex flex-wrap gap-2">
                 {["md", "json", "docx", "pdf"].map((fmt) => (
-                  <a key={fmt} href={downloadUrl(`/projects/${id}/versions/${v}/download/${fmt}`)}>
-                    <Button variant="secondary"><Download className="h-4 w-4" /> {fmt.toUpperCase()}</Button>
-                  </a>
+                  <Button key={fmt} variant="secondary" disabled={downloading}
+                    onClick={() => download(v!, fmt)}>
+                    <Download className="h-4 w-4" /> {fmt.toUpperCase()}
+                  </Button>
                 ))}
               </div>
               <div className="mt-4">
@@ -180,14 +196,15 @@ export default function ProjectDetail() {
                   <span className="font-medium">v{ver.version_no}</span>
                   <span className="text-xs text-slate-400">{ver.model_id}</span>
                   <span className="text-xs text-slate-400">{new Date(ver.created_at).toLocaleString()}</span>
-                  <HostBadge status={ver.host_sync_status === "synced" ? "synced" : "not_sent"} />
+                  <HostBadge status={ver.host_sync_status} />
                 </div>
                 <div className="flex gap-1">
                   {["md", "json", "docx", "pdf"].map((fmt) => (
-                    <a key={fmt} href={downloadUrl(`/projects/${id}/versions/${ver.version_no}/download/${fmt}`)}
-                       className="rounded px-2 py-1 text-xs text-brand-600 hover:bg-brand-50">
+                    <button key={fmt} disabled={downloading}
+                      onClick={() => download(ver.version_no, fmt)}
+                      className="rounded px-2 py-1 text-xs text-brand-600 hover:bg-brand-50 disabled:opacity-50">
                       {fmt}
-                    </a>
+                    </button>
                   ))}
                 </div>
               </div>
@@ -195,6 +212,22 @@ export default function ProjectDetail() {
           </div>
         </Card>
       )}
+
+      <Modal open={!!docToDelete} onClose={() => setDocToDelete(null)} title="Delete this document?">
+        <div className="flex gap-3">
+          <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-red-100 text-red-600">
+            <AlertTriangle className="h-5 w-5" />
+          </div>
+          <p className="text-sm text-slate-600">
+            Delete <span className="font-semibold text-slate-800">{docToDelete?.original_filename}</span>?
+            The agent will no longer use it. This can't be undone.
+          </p>
+        </div>
+        <div className="mt-5 flex justify-end gap-2">
+          <Button variant="secondary" onClick={() => setDocToDelete(null)}>Cancel</Button>
+          <Button variant="danger" onClick={confirmRemoveDoc}>Delete</Button>
+        </div>
+      </Modal>
     </Layout>
   );
 }

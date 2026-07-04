@@ -23,19 +23,30 @@ export function GenerationProgress({ projectId, jobId, onDone }: Props) {
   const [phase, setPhase] = useState("queued");
   const [activity, setActivity] = useState("Starting…");
   const [terminal, setTerminal] = useState<null | { status: string; error?: string }>(null);
+  const [reconnecting, setReconnecting] = useState(false);
   const doneRef = useRef(false);
 
   useEffect(() => {
     const ctrl = new AbortController();
+    doneRef.current = false;
+    let retries = 0;
+    const MAX_RETRIES = 8;
+
     fetchEventSource(`${apiBase}/projects/${projectId}/jobs/${jobId}/stream`, {
       headers: { ...authHeaders() },
       signal: ctrl.signal,
       openWhenHidden: true,
+      onopen: async () => { setReconnecting(false); retries = 0; },
       onmessage(ev) {
         if (!ev.data) return;
-        const data = JSON.parse(ev.data);
+        let data: any;
+        try {
+          data = JSON.parse(ev.data);
+        } catch {
+          return; // one malformed frame shouldn't tear down the whole stream
+        }
         if (data.type === "progress") {
-          if (typeof data.percent === "number") setPercent(data.percent);
+          if (typeof data.percent === "number") setPercent((p) => Math.max(p, data.percent));
           if (data.phase) setPhase(data.phase);
           if (data.current_activity) setActivity(data.current_activity);
         } else if (data.type === "done") {
@@ -48,12 +59,22 @@ export function GenerationProgress({ projectId, jobId, onDone }: Props) {
           ctrl.abort();
         }
       },
+      onclose() {
+        // Server closed without a terminal event — retry unless we already finished.
+        if (!doneRef.current) throw new Error("stream closed early");
+      },
       onerror(err) {
-        // allow auto-retry by not throwing; but stop after abort
-        throw err;
+        if (doneRef.current) throw err; // stop retrying, we're done
+        retries += 1;
+        if (retries > MAX_RETRIES) throw err; // give up after sustained failures
+        setReconnecting(true);
+        return Math.min(1000 * retries, 5000); // backoff; library reconnects
       },
     }).catch(() => {
-      /* stream closed */
+      // Only surface a hard failure if the job never reached a terminal state.
+      if (!doneRef.current) {
+        setTerminal({ status: "failed", error: "Lost connection to the server." });
+      }
     });
     return () => ctrl.abort();
   }, [projectId, jobId]);
@@ -99,7 +120,9 @@ export function GenerationProgress({ projectId, jobId, onDone }: Props) {
           </span>
         ))}
       </div>
-      <p className="text-xs text-slate-500">{activity}</p>
+      <p className="text-xs text-slate-500">
+        {reconnecting ? "Reconnecting to the server…" : activity}
+      </p>
     </div>
   );
 }

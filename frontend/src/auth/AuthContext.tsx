@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from "react";
-import { apiGet, apiPost, setToken } from "../lib/api";
+import { apiGet, apiPost, getToken, setToken } from "../lib/api";
 import type { User } from "../lib/types";
 
 interface AuthState {
@@ -17,12 +17,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    if (!getToken()) { setLoading(false); return; }
     (async () => {
       try {
         const me = await apiGet<User>("/auth/me");
         setUser(me);
       } catch {
-        setToken(null);
+        // A real 401 is handled centrally in api.ts (token cleared + redirect). For a network
+        // or server blip we keep the token so the user isn't logged out spuriously.
       } finally {
         setLoading(false);
       }

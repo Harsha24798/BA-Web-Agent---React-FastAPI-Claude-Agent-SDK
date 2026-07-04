@@ -38,6 +38,7 @@ export function Layout({ children }: { children: ReactNode }) {
                   <NavLink to="/admin/master-prompt">Master Prompt</NavLink>
                   <NavLink to="/admin/tools">Tools</NavLink>
                   <NavLink to="/admin/template">Template</NavLink>
+                  <NavLink to="/admin/settings">Settings</NavLink>
                 </>
               )}
             </nav>

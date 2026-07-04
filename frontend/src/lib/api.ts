@@ -18,8 +18,23 @@ export function authHeaders(): Record<string, string> {
 
 export const apiBase = BASE;
 
+const AUTH_PATHS = ["/login", "/register", "/set-password"];
+
+function handleUnauthorized() {
+  setToken(null);
+  const path = window.location.pathname;
+  if (!AUTH_PATHS.some((p) => path.startsWith(p))) {
+    // Session expired mid-use — bounce to login instead of throwing cryptic toasts everywhere.
+    window.location.assign("/login?expired=1");
+  }
+}
+
 async function handle(res: Response) {
   if (!res.ok) {
+    if (res.status === 401) {
+      handleUnauthorized();
+      throw new Error("Your session has expired. Please sign in again.");
+    }
     let detail = res.statusText;
     try {
       const body = await res.json();
@@ -86,6 +101,21 @@ export async function apiUpload<T = any>(path: string, files: File[], category: 
   return handle(res);
 }
 
-export function downloadUrl(path: string) {
-  return `${BASE}${path}`;
+/** Download a protected file: fetch with the JWT, then save the blob.
+ * (A plain <a href> link can't send the Authorization header, so it would 401.) */
+export async function downloadFile(path: string, filename: string): Promise<void> {
+  const res = await fetch(`${BASE}${path}`, { headers: { ...authHeaders() } });
+  if (!res.ok) {
+    if (res.status === 401) handleUnauthorized();
+    throw new Error(`Download failed (${res.status})`);
+  }
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
 }

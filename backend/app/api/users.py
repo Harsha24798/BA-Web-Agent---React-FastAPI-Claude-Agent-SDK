@@ -10,7 +10,9 @@ from sqlalchemy.orm import Session
 from app.auth.deps import require_admin
 from app.auth.security import hash_password
 from app.auth.tokens import issue_token
+from app.config import settings
 from app.db.database import get_db
+from app.services.settings_service import effective_smtp
 from app.db.models import User, UserModel
 from app.schemas import MessageOut, RoleIn, UserEditIn, UserModelsIn, UserOut
 from app.services import email as email_service
@@ -52,11 +54,9 @@ def approve(user_id: str, admin: User = Depends(require_admin), db: Session = De
     raw = issue_token(db, user.id, purpose="set_password")
     db.commit()
     email_service.send_approved(user.email, user.full_name, raw)
-    link = email_service.pending_links.get(user.email.lower())
-    detail = "User approved; set-password email sent."
-    if link:
-        detail += f" Link: {link}"
-    return MessageOut(detail=detail)
+    # When SMTP is off the email isn't actually sent — surface the link so the admin can share it.
+    link = None if effective_smtp().configured else email_service.pending_links.get(user.email.lower())
+    return MessageOut(detail="User approved.", link=link)
 
 
 @router.post("/{user_id}/reject", response_model=MessageOut)
@@ -91,11 +91,8 @@ def reset_password(user_id: str, db: Session = Depends(get_db)):
     raw = issue_token(db, user.id, purpose="set_password")
     db.commit()
     email_service.send_reset(user.email, user.full_name, raw)
-    link = email_service.pending_links.get(user.email.lower())
-    detail = "Reset link sent."
-    if link:
-        detail += f" Link: {link}"
-    return MessageOut(detail=detail)
+    link = None if effective_smtp().configured else email_service.pending_links.get(user.email.lower())
+    return MessageOut(detail="Reset link sent.", link=link)
 
 
 @router.patch("/{user_id}", response_model=UserOut)

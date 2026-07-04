@@ -84,3 +84,19 @@ export interface AgentTool {
   sort_order: number;
 }
 
+export interface AppSettings {
+  anthropic_key_set: boolean;
+  anthropic_key_hint: string | null;
+  anthropic_status: string;   // unknown | connected | failed
+  anthropic_checked_at: string | null;
+  anthropic_error: string | null;
+  smtp_host: string;
+  smtp_port: number;
+  smtp_user: string;
+  smtp_pass_set: boolean;
+  smtp_from: string;
+  smtp_status: string;
+  smtp_checked_at: string | null;
+  smtp_error: string | null;
+}
+

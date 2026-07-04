@@ -15,6 +15,7 @@ from app.jobs.generation import run_job
 from app.jobs.manager import manager
 from app.schemas import GenerateIn, JobOut, MessageOut
 from app.services import status as status_svc
+from app.services.settings_service import effective_anthropic_key
 
 router = APIRouter(prefix="/projects", tags=["generation"])
 
@@ -27,6 +28,12 @@ def _get_project(db: Session, project_id: str) -> Project:
 
 
 def _start_job(db: Session, project: Project, user: User, model_id: str, regen: bool) -> GenerationJob:
+    if not effective_anthropic_key():
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            "SRS generation isn't set up yet — no AI API key is configured. "
+            "Please contact your administrator.",
+        )
     if model_id not in allowed_model_ids(db, user):
         raise HTTPException(status.HTTP_403_FORBIDDEN, "You don't have access to that model")
     if status_svc.active_job(db, project.id):
@@ -51,8 +58,8 @@ def _start_job(db: Session, project: Project, user: User, model_id: str, regen: 
 
 
 @router.post("/{project_id}/generate", response_model=JobOut)
-def generate(project_id: str, body: GenerateIn, user: User = Depends(require_active),
-             db: Session = Depends(get_db)):
+async def generate(project_id: str, body: GenerateIn, user: User = Depends(require_active),
+                   db: Session = Depends(get_db)):
     project = _get_project(db, project_id)
     if user.role != "admin" and project.current_srs_version_id:
         raise HTTPException(status.HTTP_403_FORBIDDEN,
@@ -62,8 +69,8 @@ def generate(project_id: str, body: GenerateIn, user: User = Depends(require_act
 
 
 @router.post("/{project_id}/regenerate", response_model=JobOut)
-def regenerate(project_id: str, body: GenerateIn, admin: User = Depends(require_admin),
-               db: Session = Depends(get_db)):
+async def regenerate(project_id: str, body: GenerateIn, admin: User = Depends(require_admin),
+                     db: Session = Depends(get_db)):
     project = _get_project(db, project_id)
     job = _start_job(db, project, admin, body.model_id, regen=True)
     return JobOut.model_validate(job)

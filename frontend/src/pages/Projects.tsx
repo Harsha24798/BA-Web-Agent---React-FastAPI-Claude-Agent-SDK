@@ -5,11 +5,12 @@ import { apiGet, apiPost } from "../lib/api";
 import { toast } from "../lib/toast";
 import type { Project } from "../lib/types";
 import { Layout } from "../components/Layout";
-import { Button, Card, Input, Label, Modal } from "../components/ui";
+import { Button, Card, Input, Label, Modal, Spinner } from "../components/ui";
 import { HostBadge, StatusBadge, UploadBadge } from "../components/StatusBadge";
 
 export default function Projects() {
   const [projects, setProjects] = useState<Project[]>([]);
+  const [loaded, setLoaded] = useState(false);
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
@@ -19,6 +20,8 @@ export default function Projects() {
       setProjects(await apiGet<Project[]>("/projects"));
     } catch (e: any) {
       toast.error(e.message);
+    } finally {
+      setLoaded(true);
     }
   }
 
@@ -47,7 +50,11 @@ export default function Projects() {
         <Button onClick={() => setOpen(true)}><Plus className="h-4 w-4" /> New Project</Button>
       </div>
 
-      {projects.length === 0 ? (
+      {!loaded ? (
+        <Card className="flex items-center justify-center gap-2 p-10 text-slate-500">
+          <Spinner /> Loading…
+        </Card>
+      ) : projects.length === 0 ? (
         <Card className="p-10 text-center text-slate-500">
           No projects yet. Create one to get started.
         </Card>

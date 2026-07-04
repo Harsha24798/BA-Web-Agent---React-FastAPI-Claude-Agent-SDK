@@ -45,7 +45,10 @@ def send_email(to: str, subject: str, template: str, context: dict, link: str | 
     if link:
         pending_links[to.lower()] = link
 
-    if not settings.smtp_configured:
+    from app.services.settings_service import effective_smtp
+    smtp_cfg = effective_smtp()
+
+    if not smtp_cfg.configured:
         logger.info("[EMAIL:not-sent] to=%s subject=%s link=%s", recipient, subject, link or "")
         logger.info("[EMAIL:body]\n%s", text)
         return
@@ -53,15 +56,18 @@ def send_email(to: str, subject: str, template: str, context: dict, link: str | 
     try:
         msg = MIMEMultipart("alternative")
         msg["Subject"] = subject
-        msg["From"] = settings.smtp_from
+        msg["From"] = smtp_cfg.from_addr
         msg["To"] = recipient
         msg.attach(MIMEText(text, "plain"))
         msg.attach(MIMEText(html, "html"))
-        with smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=20) as smtp:
-            smtp.starttls()
-            if settings.smtp_user:
-                smtp.login(settings.smtp_user, settings.smtp_pass)
-            smtp.sendmail(settings.smtp_from, [recipient], msg.as_string())
+        with smtplib.SMTP(smtp_cfg.host, smtp_cfg.port, timeout=20) as smtp:
+            try:
+                smtp.starttls()
+            except smtplib.SMTPException:
+                pass
+            if smtp_cfg.user:
+                smtp.login(smtp_cfg.user, smtp_cfg.password)
+            smtp.sendmail(smtp_cfg.from_addr, [recipient], msg.as_string())
         logger.info("[EMAIL:sent] to=%s subject=%s", recipient, subject)
     except Exception as e:  # never fail the underlying action
         logger.error("[EMAIL:error] to=%s subject=%s err=%s", recipient, subject, e)

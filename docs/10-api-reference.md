@@ -96,6 +96,21 @@ Auth levels: **public**, **active** (any active user), **admin**. FastAPI serves
 | PUT | `/admin/tools/{id}` | edit / enable / disable |
 | DELETE | `/admin/tools/{id}` | remove |
 
+## Settings (admin)
+
+| Method | Path | Notes |
+|--------|------|-------|
+| GET | `/admin/settings` | current settings (secrets masked) |
+| PUT | `/admin/settings/anthropic` | `{key}` set/replace API key (encrypted) |
+| DELETE | `/admin/settings/anthropic` | remove API key (blocks generation) |
+| POST | `/admin/settings/anthropic/test` | live connection test → status badge |
+| PUT | `/admin/settings/smtp` | `{host,port,user,password?,from_addr}` (password omitted = keep) |
+| DELETE | `/admin/settings/smtp` | remove mail config |
+| POST | `/admin/settings/smtp/test` | live SMTP test → status badge |
+
+Generation returns **400** ("…no AI API key is configured. Please contact your administrator.")
+when no effective key exists (neither DB setting nor `.env`).
+
 ## Conventions
 
 - Errors return `{detail: "..."}` with appropriate HTTP status (400/401/403/404/409/422).

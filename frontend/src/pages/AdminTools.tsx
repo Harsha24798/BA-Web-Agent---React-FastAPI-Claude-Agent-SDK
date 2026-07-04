@@ -13,6 +13,7 @@ export default function AdminTools() {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<AgentTool | null>(null);
   const [form, setForm] = useState({ ...empty });
+  const [saving, setSaving] = useState(false);
 
   async function load() { setTools(await apiGet<AgentTool[]>("/admin/tools")); }
   useEffect(() => { load(); }, []);
@@ -31,12 +32,15 @@ export default function AdminTools() {
   }
 
   async function save() {
+    if (saving) return;
+    setSaving(true);
     const req = editing
       ? apiPut(`/admin/tools/${editing.id}`, {
           display_name: form.display_name, description: form.description,
           is_enabled: form.is_enabled, sort_order: form.sort_order })
       : apiPost("/admin/tools", form);
     const r = await withToast(() => req, { success: editing ? "Tool updated." : "Tool added.", error: "Save failed" });
+    setSaving(false);
     if (r) { setOpen(false); load(); }
   }
 
@@ -87,7 +91,7 @@ export default function AdminTools() {
           <div><Label>Display name</Label><Input value={form.display_name} onChange={(e) => setForm({ ...form, display_name: e.target.value })} /></div>
           <div><Label>Description</Label><Input value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} /></div>
           <span className="flex items-center gap-2 text-sm"><Toggle checked={form.is_enabled} onChange={(v) => setForm({ ...form, is_enabled: v })} /> Enabled</span>
-          <div className="flex justify-end gap-2"><Button variant="secondary" onClick={() => setOpen(false)}>Cancel</Button><Button onClick={save}>{editing ? "Save" : "Add"}</Button></div>
+          <div className="flex justify-end gap-2"><Button variant="secondary" onClick={() => setOpen(false)}>Cancel</Button><Button onClick={save} disabled={saving}>{editing ? "Save" : "Add"}</Button></div>
         </div>
       </Modal>
     </Layout>
