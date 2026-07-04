@@ -91,6 +91,15 @@ def _activate(db: Session, Model, item_id: str):
     return NamedConfigOut.model_validate(row)
 
 
+def _deactivate(db: Session, Model, item_id: str):
+    row = db.get(Model, item_id)
+    if not row:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Not found")
+    row.is_active = False
+    db.commit()
+    return NamedConfigOut.model_validate(row)
+
+
 # ---------------- master prompt ----------------
 @router.get("/master-prompt")
 def get_master_prompt(db: Session = Depends(get_db)):
@@ -118,6 +127,11 @@ def activate_master_prompt(item_id: str, db: Session = Depends(get_db)):
     return _activate(db, AgentPrompt, item_id)
 
 
+@router.post("/master-prompt/{item_id}/deactivate", response_model=NamedConfigOut)
+def deactivate_master_prompt(item_id: str, db: Session = Depends(get_db)):
+    return _deactivate(db, AgentPrompt, item_id)
+
+
 # ---------------- SRS template ----------------
 @router.get("/template")
 def get_template(db: Session = Depends(get_db)):
@@ -143,6 +157,11 @@ def delete_template(item_id: str, db: Session = Depends(get_db)):
 @router.post("/template/{item_id}/activate", response_model=NamedConfigOut)
 def activate_template(item_id: str, db: Session = Depends(get_db)):
     return _activate(db, Template, item_id)
+
+
+@router.post("/template/{item_id}/deactivate", response_model=NamedConfigOut)
+def deactivate_template(item_id: str, db: Session = Depends(get_db)):
+    return _deactivate(db, Template, item_id)
 
 
 # ---------------- tools ----------------
