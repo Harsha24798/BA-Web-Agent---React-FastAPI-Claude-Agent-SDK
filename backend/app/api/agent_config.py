@@ -75,8 +75,6 @@ def _delete(db: Session, Model, item_id: str):
     if row.is_active:
         raise HTTPException(status.HTTP_400_BAD_REQUEST,
                             "Cannot delete the active item. Activate another first.")
-    if db.scalar(select(Model).where(Model.id != item_id)) is None:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "At least one must remain.")
     db.delete(row)
     db.commit()
     return MessageOut(detail="Deleted.")
