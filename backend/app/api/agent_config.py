@@ -4,7 +4,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.auth.deps import require_admin
@@ -32,20 +32,36 @@ def _list(db: Session, Model):
     }
 
 
-def _create(db: Session, Model, body: NamedConfigIn, admin: User):
+def _assert_unique_name(
+    db: Session, Model, name: str, noun: str, exclude_id: str | None = None
+) -> None:
+    query = select(Model).where(func.lower(Model.name) == name.lower())
+    if exclude_id is not None:
+        query = query.where(Model.id != exclude_id)
+    if db.scalar(query) is not None:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST, f'A {noun} named "{name}" already exists.'
+        )
+
+
+def _create(db: Session, Model, body: NamedConfigIn, admin: User, noun: str):
+    name = body.name.strip()
+    _assert_unique_name(db, Model, name, noun)
     has_any = db.scalar(select(Model)) is not None
-    row = Model(name=body.name.strip(), content=body.content, is_active=not has_any,
+    row = Model(name=name, content=body.content, is_active=not has_any,
                 updated_by=admin.id, updated_at=datetime.now(timezone.utc))
     db.add(row)
     db.commit()
     return NamedConfigOut.model_validate(row)
 
 
-def _update(db: Session, Model, item_id: str, body: NamedConfigIn):
+def _update(db: Session, Model, item_id: str, body: NamedConfigIn, noun: str):
     row = db.get(Model, item_id)
     if not row:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Not found")
-    row.name = body.name.strip()
+    name = body.name.strip()
+    _assert_unique_name(db, Model, name, noun, exclude_id=item_id)
+    row.name = name
     row.content = body.content
     row.updated_at = datetime.now(timezone.utc)
     db.commit()
@@ -86,12 +102,12 @@ def get_master_prompt(db: Session = Depends(get_db)):
 @router.post("/master-prompt", response_model=NamedConfigOut)
 def create_master_prompt(body: NamedConfigIn, admin: User = Depends(require_admin),
                          db: Session = Depends(get_db)):
-    return _create(db, AgentPrompt, body, admin)
+    return _create(db, AgentPrompt, body, admin, "master prompt")
 
 
 @router.put("/master-prompt/{item_id}", response_model=NamedConfigOut)
 def update_master_prompt(item_id: str, body: NamedConfigIn, db: Session = Depends(get_db)):
-    return _update(db, AgentPrompt, item_id, body)
+    return _update(db, AgentPrompt, item_id, body, "master prompt")
 
 
 @router.delete("/master-prompt/{item_id}", response_model=MessageOut)
@@ -113,12 +129,12 @@ def get_template(db: Session = Depends(get_db)):
 @router.post("/template", response_model=NamedConfigOut)
 def create_template(body: NamedConfigIn, admin: User = Depends(require_admin),
                     db: Session = Depends(get_db)):
-    return _create(db, Template, body, admin)
+    return _create(db, Template, body, admin, "SRS template")
 
 
 @router.put("/template/{item_id}", response_model=NamedConfigOut)
 def update_template(item_id: str, body: NamedConfigIn, db: Session = Depends(get_db)):
-    return _update(db, Template, item_id, body)
+    return _update(db, Template, item_id, body, "SRS template")
 
 
 @router.delete("/template/{item_id}", response_model=MessageOut)
