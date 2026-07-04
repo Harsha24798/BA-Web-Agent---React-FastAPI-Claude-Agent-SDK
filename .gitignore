@@ -19,3 +19,6 @@ frontend/.env
 .idea/
 .DS_Store
 Thumbs.db
+
+# Superpowers scratch state
+.superpowers/
