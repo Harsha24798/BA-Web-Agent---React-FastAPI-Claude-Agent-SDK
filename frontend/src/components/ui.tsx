@@ -74,8 +74,44 @@ export function Modal({
   );
 }
 
-export function Spinner() {
+export function Spinner({ className = "" }: { className?: string }) {
   return (
-    <div className="h-4 w-4 animate-spin rounded-full border-2 border-slate-300 border-t-brand-500" />
+    <div className={`h-4 w-4 animate-spin rounded-full border-2 border-slate-300 border-t-brand-500 ${className}`} />
+  );
+}
+
+export function Toggle({
+  checked,
+  onChange,
+  disabled = false,
+  labels,
+}: {
+  checked: boolean;
+  onChange: (v: boolean) => void;
+  disabled?: boolean;
+  labels?: [string, string]; // [on, off]
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      disabled={disabled}
+      onClick={() => onChange(!checked)}
+      className="inline-flex items-center gap-2 disabled:opacity-50"
+    >
+      <span
+        className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition ${
+          checked ? "bg-emerald-500" : "bg-slate-300"
+        }`}
+      >
+        <span
+          className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition ${
+            checked ? "translate-x-4" : "translate-x-0.5"
+          }`}
+        />
+      </span>
+      {labels && <span className="text-xs text-slate-500">{checked ? labels[0] : labels[1]}</span>}
+    </button>
   );
 }

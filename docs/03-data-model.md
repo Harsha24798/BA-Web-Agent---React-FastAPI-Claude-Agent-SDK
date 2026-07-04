@@ -104,10 +104,11 @@ Only `active` users can log in. The seeded admin is inserted `active` on first s
 | updated_by | uuid FK users | |
 | updated_at | text | |
 
-### agent_prompts  *(master/system prompt — versioned, used verbatim)*
+### agent_prompts  *(master/system prompt — named library, used verbatim)*
 | column | type | notes |
 |--------|------|-------|
 | id | uuid PK | |
+| name | text | display name (named library; create/edit/delete/activate) |
 | content | text | Markdown master prompt |
 | version_no | int | |
 | is_active | bool | exactly one active |
@@ -149,7 +150,7 @@ status IN ('queued','running');` → one active job per project.
 
 Optional **job_events** (append-only: id, job_id, ts, type, payload_json) for full SSE replay/debug.
 
-### llm_models
+### llm_models  *(not seeded — admin adds every model via the Models page)*
 | column | type | notes |
 |--------|------|-------|
 | id | uuid PK | |

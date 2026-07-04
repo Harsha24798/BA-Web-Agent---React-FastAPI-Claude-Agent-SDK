@@ -57,6 +57,15 @@ export async function apiPut<T = any>(path: string, body?: any): Promise<T> {
   return handle(res);
 }
 
+export async function apiPatch<T = any>(path: string, body?: any): Promise<T> {
+  const res = await fetch(`${BASE}${path}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json", ...authHeaders() },
+    body: body !== undefined ? JSON.stringify(body) : undefined,
+  });
+  return handle(res);
+}
+
 export async function apiDelete<T = any>(path: string): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
     method: "DELETE",

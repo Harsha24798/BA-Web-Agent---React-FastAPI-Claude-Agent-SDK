@@ -57,6 +57,12 @@ class UserModelsIn(BaseModel):
     model_ids: list[str]
 
 
+class UserEditIn(BaseModel):
+    full_name: str | None = Field(default=None, max_length=200)
+    email: EmailStr | None = None
+    password: str | None = Field(default=None, min_length=8, max_length=200)
+
+
 # ---------- projects ----------
 class ProjectCreateIn(BaseModel):
     name: str = Field(min_length=1, max_length=200)
@@ -96,6 +102,7 @@ class ProjectOut(BaseModel):
     host_sync_status: str      # not_sent | synced | out_of_date
     current_version_no: int | None = None
     active_job_id: str | None = None
+    document_count: int = 0
 
 
 class ProjectDetailOut(ProjectOut):
@@ -146,15 +153,16 @@ class JobOut(BaseModel):
         from_attributes = True
 
 
-# ---------- agent config ----------
-class ContentIn(BaseModel):
+# ---------- agent config (named library: master prompt / SRS template) ----------
+class NamedConfigIn(BaseModel):
+    name: str = Field(min_length=1, max_length=200)
     content: str
 
 
-class PromptVersionOut(BaseModel):
+class NamedConfigOut(BaseModel):
     id: str
+    name: str
     content: str
-    version_no: int
     is_active: bool
     updated_at: datetime
 

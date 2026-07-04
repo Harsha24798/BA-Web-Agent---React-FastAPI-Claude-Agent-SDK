@@ -29,7 +29,8 @@ copy .env.example .env
 uvicorn app.main:app --reload --workers 1 --port 8000
 ```
 
-First run: creates the SQLite DB, seeds the admin, seeds default models/tools/master-prompt/template.
+First run: creates the SQLite DB, seeds the admin, tools, a default master prompt, and a default SRS
+template. **No LLM models are seeded** — an admin adds them on the Models page before generation.
 The app performs a **startup health check** — it refuses to boot with a clear message if Node, the
 Claude Code CLI, or `ANTHROPIC_API_KEY` are missing.
 
@@ -69,7 +70,9 @@ npm run dev        # http://localhost:5173
 ## 3. First use
 
 1. Open http://localhost:5173 and **log in as the seeded admin** (`ADMIN_EMAIL`/`ADMIN_PASSWORD`).
-2. (Optional) Admin → **Models** (enable models), **Master Prompt** / **Template** / **Tools** (tune).
+2. Admin → **Models**: **add at least one model** (e.g. `claude-sonnet-5`) — none are seeded.
+   Optionally tune **Master Prompt** / **Template** (named library: create/edit/activate, import .md)
+   and **Tools**.
 3. Have a teammate **Register** (name + email). Approve them in **Admin → Users**. They get an email
    (or copy the link from the admin UI if SMTP is off) → set password → log in.
 4. Any user: **New Project** → upload docs → pick a model → **Generate** → watch the progress bar.

@@ -8,10 +8,11 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.auth.deps import require_admin
+from app.auth.security import hash_password
 from app.auth.tokens import issue_token
 from app.db.database import get_db
 from app.db.models import User, UserModel
-from app.schemas import MessageOut, RoleIn, UserModelsIn, UserOut
+from app.schemas import MessageOut, RoleIn, UserEditIn, UserModelsIn, UserOut
 from app.services import email as email_service
 
 router = APIRouter(prefix="/users", tags=["users"], dependencies=[Depends(require_admin)])
@@ -95,6 +96,25 @@ def reset_password(user_id: str, db: Session = Depends(get_db)):
     if link:
         detail += f" Link: {link}"
     return MessageOut(detail=detail)
+
+
+@router.patch("/{user_id}", response_model=UserOut)
+def edit_user(user_id: str, body: UserEditIn, db: Session = Depends(get_db)):
+    user = _get_user(db, user_id)
+    if body.full_name is not None and body.full_name.strip():
+        user.full_name = body.full_name.strip()
+    if body.email is not None:
+        new_email = body.email.lower()
+        clash = db.scalar(select(User).where(User.email == new_email, User.id != user.id))
+        if clash:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, "Email already in use")
+        user.email = new_email
+    if body.password:
+        user.password_hash = hash_password(body.password)
+        if user.status == "pending":
+            user.status = "active"
+    db.commit()
+    return UserOut.model_validate(user)
 
 
 @router.post("/{user_id}/role", response_model=MessageOut)

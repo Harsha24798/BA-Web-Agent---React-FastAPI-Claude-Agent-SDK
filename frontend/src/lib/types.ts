@@ -19,6 +19,15 @@ export interface Project {
   host_sync_status: "not_sent" | "synced" | "out_of_date";
   current_version_no: number | null;
   active_job_id: string | null;
+  document_count: number;
+}
+
+export interface NamedConfig {
+  id: string;
+  name: string;
+  content: string;
+  is_active: boolean;
+  updated_at: string;
 }
 
 export interface DocumentItem {
@@ -75,10 +84,3 @@ export interface AgentTool {
   sort_order: number;
 }
 
-export interface PromptVersion {
-  id: string;
-  content: string;
-  version_no: number;
-  is_active: boolean;
-  updated_at: string;
-}

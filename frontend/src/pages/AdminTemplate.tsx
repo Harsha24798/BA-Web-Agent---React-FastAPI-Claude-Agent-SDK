@@ -1,14 +1,14 @@
 import { Layout } from "../components/Layout";
-import { VersionedEditor } from "../components/VersionedEditor";
+import { NamedConfigManager } from "../components/NamedConfigManager";
 
 export default function AdminTemplate() {
   return (
     <Layout>
       <h1 className="mb-5 text-xl font-semibold">SRS Template</h1>
-      <VersionedEditor
+      <NamedConfigManager
         endpoint="/admin/template"
-        title="SRS document structure"
-        help="This describes the SRS sections the agent must follow. It is injected into the prompt as the required structure."
+        noun="Template"
+        help="The active template describes the SRS sections the agent must follow; it is injected into the prompt as the required structure. Import a .md file, edit, and Save."
       />
     </Layout>
   );

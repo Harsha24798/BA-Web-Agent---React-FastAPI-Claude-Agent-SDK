@@ -138,6 +138,7 @@ class AgentPrompt(Base):
     __tablename__ = "agent_prompts"
 
     id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    name: Mapped[str] = mapped_column(String, default="Master Prompt")
     content: Mapped[str] = mapped_column(Text)
     version_no: Mapped[int] = mapped_column(Integer, default=1)
     is_active: Mapped[bool] = mapped_column(Boolean, default=False)

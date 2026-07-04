@@ -9,13 +9,7 @@ from sqlalchemy.orm import Session
 from app.agent.defaults import DEFAULT_MASTER_PROMPT, DEFAULT_SRS_TEMPLATE
 from app.auth.security import hash_password
 from app.config import settings
-from app.db.models import AgentPrompt, AgentTool, LlmModel, Template, User
-
-DEFAULT_MODELS = [
-    ("claude-sonnet-5", "Claude Sonnet 5", "Balanced speed and quality.", True, True, 1),
-    ("claude-opus-4-8", "Claude Opus 4.8", "Highest quality, deeper reasoning.", True, False, 2),
-    ("claude-haiku-4-5-20251001", "Claude Haiku 4.5", "Fastest, most economical.", True, False, 3),
-]
+from app.db.models import AgentPrompt, AgentTool, Template, User
 
 DEFAULT_TOOLS = [
     ("Read", "Read file", "Read a file from the project workspace.", True, 1),
@@ -26,7 +20,7 @@ DEFAULT_TOOLS = [
 
 def seed(db: Session) -> None:
     _seed_admin(db)
-    _seed_models(db)
+    # NOTE: LLM models are intentionally NOT seeded — the admin adds them via the Models page.
     _seed_tools(db)
     _seed_master_prompt(db)
     _seed_template(db)
@@ -48,16 +42,6 @@ def _seed_admin(db: Session) -> None:
     db.add(admin)
 
 
-def _seed_models(db: Session) -> None:
-    if db.scalar(select(LlmModel)):
-        return
-    for model_id, name, desc, enabled, default, order in DEFAULT_MODELS:
-        db.add(LlmModel(
-            model_id=model_id, display_name=name, description=desc,
-            is_enabled=enabled, is_default=default, sort_order=order,
-        ))
-
-
 def _seed_tools(db: Session) -> None:
     if db.scalar(select(AgentTool)):
         return
@@ -71,7 +55,8 @@ def _seed_tools(db: Session) -> None:
 def _seed_master_prompt(db: Session) -> None:
     if db.scalar(select(AgentPrompt)):
         return
-    db.add(AgentPrompt(content=DEFAULT_MASTER_PROMPT, version_no=1, is_active=True))
+    db.add(AgentPrompt(name="Default Master Prompt", content=DEFAULT_MASTER_PROMPT,
+                       version_no=1, is_active=True))
 
 
 def _seed_template(db: Session) -> None:

@@ -6,7 +6,7 @@ import { toast } from "../lib/toast";
 import type { Project } from "../lib/types";
 import { Layout } from "../components/Layout";
 import { Button, Card, Input, Label, Modal } from "../components/ui";
-import { HostBadge, StatusBadge } from "../components/StatusBadge";
+import { HostBadge, StatusBadge, UploadBadge } from "../components/StatusBadge";
 
 export default function Projects() {
   const [projects, setProjects] = useState<Project[]>([]);
@@ -61,10 +61,11 @@ export default function Projects() {
                   Created {new Date(p.created_at).toLocaleDateString()}
                 </p>
                 <div className="flex flex-wrap gap-2">
+                  <UploadBadge count={p.document_count} />
                   <StatusBadge status={p.srs_status} />
                   <HostBadge status={p.host_sync_status} />
                   {p.current_version_no && (
-                    <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs text-slate-600">
+                    <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600 ring-1 ring-slate-200">
                       v{p.current_version_no}
                     </span>
                   )}

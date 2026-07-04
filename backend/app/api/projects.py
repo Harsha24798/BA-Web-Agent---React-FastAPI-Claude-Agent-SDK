@@ -4,7 +4,7 @@ from __future__ import annotations
 import shutil
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.auth.deps import require_active, require_admin
@@ -28,12 +28,18 @@ def serialize_project(db: Session, p: Project) -> ProjectOut:
     job = status_svc.active_job(db, p.id)
     srs_status = "generating" if job else p.srs_status
     version = status_svc.current_version(db, p)
+    doc_count = db.scalar(
+        select(func.count(Document.id)).where(
+            Document.project_id == p.id, Document.is_deleted == False  # noqa: E712
+        )
+    ) or 0
     return ProjectOut(
         id=p.id, name=p.name, slug=p.slug, created_by=p.created_by, created_at=p.created_at,
         srs_status=srs_status,
         host_sync_status=status_svc.host_sync_badge(db, p),
         current_version_no=version.version_no if version else None,
         active_job_id=job.id if job else None,
+        document_count=int(doc_count),
     )
 
 

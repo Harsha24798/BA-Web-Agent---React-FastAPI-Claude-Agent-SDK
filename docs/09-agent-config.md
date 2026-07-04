@@ -18,9 +18,12 @@ editing one never clobbers another, and each is **versioned/auditable**.
   *"Return the SRS as JSON matching this schema: <srs_schema.json>."* This is a machine-format
   requirement so the pipeline can validate and render outputs — it does not change the agent's
   analytical behavior. This separation is deliberate and documented so expectations are clear.
-- **Versioning:** saving edits creates a new version and flips `is_active`. Old versions are kept;
-  the admin can **roll back** to any previous version.
-- **Editing UI:** `AdminMasterPrompt.tsx` uses the Markdown editor with **Edit + Preview** so the
+- **Named library:** the master prompt is managed as a **library of named prompts** (not linear
+  version numbers). The admin can **create, rename, edit, delete, and Activate** any prompt, **Save
+  as** a new one, and **Import a `.md` file** into the editor. Exactly one is Active (used by the
+  agent); the active one can't be deleted.
+- **Editing UI:** `AdminMasterPrompt.tsx` uses `NamedConfigManager` + the Markdown editor
+  (**Edit + Preview**) so the
   admin sees a readable, formatted view while writing.
 
 ### Suggested default master prompt (seeded)
@@ -48,8 +51,9 @@ default is a starting point — the admin owns it from then on.
 ## 3. SRS Template
 
 - The **active** `templates` row's Markdown is injected into the prompt as the required SRS structure.
-- Versioned like the master prompt (save → new version, rollback supported).
-- **Editing UI:** `AdminTemplate.tsx` — same Markdown editor (Edit + Preview).
+- Managed as a **named library** like the master prompt (create/rename/edit/delete/activate,
+  Save as, Import `.md`).
+- **Editing UI:** `AdminTemplate.tsx` — same `NamedConfigManager` + Markdown editor (Edit + Preview).
 
 ## How they combine at generation time (`agent/prompt.py`)
 

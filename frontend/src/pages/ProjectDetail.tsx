@@ -7,7 +7,7 @@ import type { Job, ProjectDetail as PD } from "../lib/types";
 import { useAuth } from "../auth/AuthContext";
 import { Layout } from "../components/Layout";
 import { Button, Card, Spinner } from "../components/ui";
-import { HostBadge, StatusBadge } from "../components/StatusBadge";
+import { HostBadge, StatusBadge, UploadBadge } from "../components/StatusBadge";
 import { FileUpload } from "../components/FileUpload";
 import { ModelSelect } from "../components/ModelSelect";
 import { GenerationProgress } from "../components/GenerationProgress";
@@ -83,6 +83,7 @@ export default function ProjectDetail() {
         <div>
           <h1 className="text-xl font-semibold">{project.name}</h1>
           <div className="mt-1 flex flex-wrap gap-2">
+            <UploadBadge count={project.documents.length} />
             <StatusBadge status={jobId ? "generating" : project.srs_status} />
             <HostBadge status={project.host_sync_status} />
           </div>
@@ -107,7 +108,7 @@ export default function ProjectDetail() {
                   <FileText className="h-4 w-4 shrink-0 text-slate-400" />
                   <div className="overflow-hidden">
                     <p className="truncate text-sm">{d.original_filename}</p>
-                    <p className="text-xs capitalize text-slate-400">{d.category} · {(d.size_bytes / 1024).toFixed(0)} KB</p>
+                    <p className="text-xs text-slate-400">{(d.size_bytes / 1024).toFixed(0)} KB</p>
                   </div>
                 </div>
                 <button className="text-slate-400 hover:text-red-600" onClick={() => removeDoc(d.id)}>
