@@ -1,4 +1,5 @@
 import { ButtonHTMLAttributes, HTMLAttributes, InputHTMLAttributes, ReactNode, SelectHTMLAttributes, useEffect } from "react";
+import { AlertTriangle } from "lucide-react";
 
 export function Button({
   variant = "primary",
@@ -90,6 +91,42 @@ export function Modal({
 export function Spinner({ className = "" }: { className?: string }) {
   return (
     <div className={`h-4 w-4 animate-spin rounded-full border-2 border-slate-300 border-t-brand-500 ${className}`} />
+  );
+}
+
+/** Styled confirm dialog (replaces the browser's native confirm()). */
+export function ConfirmDialog({
+  open,
+  title = "Are you sure?",
+  message,
+  confirmLabel = "Delete",
+  busy = false,
+  onConfirm,
+  onCancel,
+}: {
+  open: boolean;
+  title?: string;
+  message: ReactNode;
+  confirmLabel?: string;
+  busy?: boolean;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  return (
+    <Modal open={open} onClose={onCancel} title={title}>
+      <div className="flex gap-3">
+        <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-red-100 text-red-600">
+          <AlertTriangle className="h-5 w-5" />
+        </div>
+        <div className="text-sm text-slate-600">{message}</div>
+      </div>
+      <div className="mt-5 flex justify-end gap-2">
+        <Button variant="secondary" onClick={onCancel} disabled={busy}>Cancel</Button>
+        <Button variant="danger" onClick={onConfirm} disabled={busy}>
+          {busy ? "Working…" : confirmLabel}
+        </Button>
+      </div>
+    </Modal>
   );
 }
 

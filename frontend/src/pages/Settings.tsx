@@ -4,7 +4,7 @@ import { apiDelete, apiGet, apiPost, apiPut } from "../lib/api";
 import { withToast } from "../lib/toast";
 import type { AppSettings } from "../lib/types";
 import { Layout } from "../components/Layout";
-import { Button, Card, Input, Label, Spinner } from "../components/ui";
+import { Button, Card, ConfirmDialog, Input, Label, Spinner } from "../components/ui";
 
 function StatusBadge({ status }: { status: string }) {
   const map: Record<string, [string, string, JSX.Element]> = {
@@ -21,6 +21,7 @@ export default function Settings() {
   const [key, setKey] = useState("");
   const [smtp, setSmtp] = useState({ host: "", port: 587, user: "", password: "", from_addr: "" });
   const [busy, setBusy] = useState<string | null>(null);
+  const [confirming, setConfirming] = useState<null | "key" | "smtp">(null);
 
   async function load() {
     const data = await apiGet<AppSettings>("/admin/settings");
@@ -73,7 +74,7 @@ export default function Settings() {
             </Button>
             {s.anthropic_key_set && (
               <Button variant="danger" disabled={busy !== null}
-                onClick={() => { if (confirm("Remove the API key? Generation will be blocked until a new key is set.")) run("del-key", () => apiDelete("/admin/settings/anthropic"), "API key removed."); }}>
+                onClick={() => setConfirming("key")}>
                 <Trash2 className="h-4 w-4" /> Delete
               </Button>
             )}
@@ -112,13 +113,33 @@ export default function Settings() {
             </Button>
             {s.smtp_host && (
               <Button variant="danger" disabled={busy !== null}
-                onClick={() => { if (confirm("Remove the mail server configuration?")) run("del-smtp", () => apiDelete("/admin/settings/smtp"), "Mail server removed."); }}>
+                onClick={() => setConfirming("smtp")}>
                 <Trash2 className="h-4 w-4" /> Delete
               </Button>
             )}
           </div>
         </Card>
       </div>
+
+      <ConfirmDialog
+        open={confirming === "key"}
+        title="Remove the API key?"
+        message="SRS generation will be blocked for everyone until a new key is set. This cannot be undone."
+        confirmLabel="Remove key"
+        busy={busy === "del-key"}
+        onConfirm={async () => { await run("del-key", () => apiDelete("/admin/settings/anthropic"), "API key removed."); setConfirming(null); }}
+        onCancel={() => setConfirming(null)}
+      />
+
+      <ConfirmDialog
+        open={confirming === "smtp"}
+        title="Remove the mail server?"
+        message="Approval and set-password links will be shown in-app instead of emailed. This cannot be undone."
+        confirmLabel="Remove"
+        busy={busy === "del-smtp"}
+        onConfirm={async () => { await run("del-smtp", () => apiDelete("/admin/settings/smtp"), "Mail server removed."); setConfirming(null); }}
+        onCancel={() => setConfirming(null)}
+      />
     </Layout>
   );
 }

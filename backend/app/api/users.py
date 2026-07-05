@@ -13,7 +13,19 @@ from app.auth.tokens import issue_token
 from app.config import settings
 from app.db.database import get_db
 from app.services.settings_service import effective_smtp
-from app.db.models import User, UserModel
+from app.db.models import (
+    AgentPrompt,
+    AgentTool,
+    AppSettings,
+    AuthToken,
+    Document,
+    GenerationJob,
+    Project,
+    SrsVersion,
+    Template,
+    User,
+    UserModel,
+)
 from app.schemas import MessageOut, RoleIn, UserEditIn, UserModelsIn, UserOut
 from app.services import email as email_service
 
@@ -112,6 +124,37 @@ def edit_user(user_id: str, body: UserEditIn, db: Session = Depends(get_db)):
             user.status = "active"
     db.commit()
     return UserOut.model_validate(user)
+
+
+@router.delete("/{user_id}", response_model=MessageOut)
+def delete_user(user_id: str, admin: User = Depends(require_admin), db: Session = Depends(get_db)):
+    user = _get_user(db, user_id)
+    if user.id == admin.id:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "You can't delete your own account.")
+    if user.role == "admin" and user.status == "active" and _active_admin_count(db) <= 1:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Cannot delete the last active admin.")
+
+    # Reassign owned content to the acting admin so shared projects/docs/SRS aren't lost
+    # (these foreign keys are non-nullable).
+    db.query(Project).filter(Project.created_by == user.id).update({Project.created_by: admin.id})
+    db.query(Document).filter(Document.uploaded_by == user.id).update({Document.uploaded_by: admin.id})
+    db.query(SrsVersion).filter(SrsVersion.generated_by == user.id).update({SrsVersion.generated_by: admin.id})
+    db.query(GenerationJob).filter(GenerationJob.triggered_by == user.id).update({GenerationJob.triggered_by: admin.id})
+
+    # Null out nullable audit references pointing at this user.
+    db.query(User).filter(User.approved_by == user.id).update({User.approved_by: None})
+    db.query(Template).filter(Template.updated_by == user.id).update({Template.updated_by: None})
+    db.query(AgentPrompt).filter(AgentPrompt.updated_by == user.id).update({AgentPrompt.updated_by: None})
+    db.query(AgentTool).filter(AgentTool.created_by == user.id).update({AgentTool.created_by: None})
+    db.query(AppSettings).filter(AppSettings.updated_by == user.id).update({AppSettings.updated_by: None})
+
+    # Tokens have no relationship cascade — remove them explicitly. user_models/user_tools
+    # cascade via the User relationships.
+    db.query(AuthToken).filter(AuthToken.user_id == user.id).delete()
+
+    db.delete(user)
+    db.commit()
+    return MessageOut(detail="User deleted.")
 
 
 @router.post("/{user_id}/role", response_model=MessageOut)

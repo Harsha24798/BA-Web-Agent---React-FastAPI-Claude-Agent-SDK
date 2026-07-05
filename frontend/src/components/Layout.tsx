@@ -9,7 +9,7 @@ function NavLink({ to, children }: { to: string; children: ReactNode }) {
   return (
     <Link
       to={to}
-      className={`rounded-lg px-3 py-1.5 text-sm font-medium ${
+      className={`whitespace-nowrap rounded-lg px-3 py-1.5 text-sm font-medium ${
         active ? "bg-brand-50 text-brand-700" : "text-slate-600 hover:bg-slate-100"
       }`}
     >
@@ -23,14 +23,15 @@ export function Layout({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-screen">
       <header className="border-b border-slate-200 bg-white">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
-          <div className="flex items-center gap-6">
-            <Link to="/projects" className="flex items-center gap-2 font-semibold text-slate-800">
+        <div className="mx-auto flex max-w-screen-2xl items-center justify-between gap-4 px-6 py-3">
+          <div className="flex min-w-0 items-center gap-4">
+            <Link to="/projects" className="flex shrink-0 items-center gap-2 whitespace-nowrap font-semibold text-slate-800">
               <span className="rounded-md bg-brand-500 px-2 py-1 text-xs text-white">BA</span>
               Agent · SRS Generator
             </Link>
-            <nav className="flex items-center gap-1">
+            <nav className="flex min-w-0 items-center gap-1 overflow-x-auto">
               <NavLink to="/projects">Projects</NavLink>
+              <NavLink to="/audio">Audio → Transcript</NavLink>
               {isAdmin && (
                 <>
                   <NavLink to="/admin/users">Users</NavLink>
@@ -43,15 +44,15 @@ export function Layout({ children }: { children: ReactNode }) {
               )}
             </nav>
           </div>
-          <div className="flex items-center gap-3">
-            <span className="text-sm text-slate-500">
+          <div className="flex shrink-0 items-center gap-3">
+            <span className="hidden text-sm text-slate-500 sm:inline">
               {user?.full_name} · <span className="capitalize">{user?.role}</span>
             </span>
             <Button variant="secondary" onClick={logout}>Logout</Button>
           </div>
         </div>
       </header>
-      <main className="mx-auto max-w-6xl px-4 py-6">{children}</main>
+      <main className="mx-auto max-w-screen-2xl px-6 py-6">{children}</main>
     </div>
   );
 }

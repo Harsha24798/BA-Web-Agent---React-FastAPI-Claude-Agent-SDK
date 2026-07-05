@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
-import { apiGet, apiPatch, apiPost, apiPut } from "../lib/api";
+import { apiDelete, apiGet, apiPatch, apiPost, apiPut } from "../lib/api";
+import { useAuth } from "../auth/AuthContext";
 import { toast, withToast } from "../lib/toast";
 import type { LlmModel, User } from "../lib/types";
 import { Layout } from "../components/Layout";
-import { Button, Card, Input, Label, Modal, Spinner, Toggle } from "../components/ui";
+import { Button, Card, ConfirmDialog, Input, Label, Modal, Spinner, Toggle } from "../components/ui";
 
 function StatusPill({ status }: { status: string }) {
   const styles: Record<string, string> = {
@@ -25,6 +26,22 @@ export default function AdminUsers() {
   const [editForm, setEditForm] = useState({ full_name: "", email: "", password: "" });
   const [linkDialog, setLinkDialog] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [toDelete, setToDelete] = useState<User | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const { user: me } = useAuth();
+
+  // Only enabled models can be granted — disabled ones are hidden from the access picker.
+  const enabledModels = models.filter((m) => m.is_enabled);
+
+  async function confirmDelete() {
+    if (!toDelete) return;
+    setDeleting(true);
+    const r = await withToast(() => apiDelete(`/users/${toDelete.id}`), {
+      success: "User deleted.", error: "Delete failed",
+    });
+    setDeleting(false);
+    if (r) { setToDelete(null); load(); }
+  }
 
   async function load() { setUsers(await apiGet<User[]>("/users")); }
   useEffect(() => {
@@ -157,24 +174,49 @@ export default function AdminUsers() {
 
       {/* Model access modal */}
       <Modal open={!!modelUser} onClose={() => setModelUser(null)} title={`Model access — ${modelUser?.full_name}`}>
-        <p className="mb-3 text-sm text-slate-500">
-          Select the models this user may use. If none are selected, the user can use every enabled
-          model. Selecting one or more restricts them to only those.
+        <p className="mb-4 text-sm text-slate-500">
+          Choose which models this user can generate with. Leave everything unchecked to give access
+          to <span className="font-medium text-slate-600">all enabled models</span>; tick specific
+          ones to restrict them to just those.
         </p>
-        {models.length === 0 && <p className="text-sm text-slate-400">No models exist yet. Add some on the Models page.</p>}
-        <div className="space-y-2">
-          {models.map((m) => (
-            <label key={m.model_id} className="flex items-center gap-2 text-sm">
-              <input
-                type="checkbox"
-                checked={grants.includes(m.model_id)}
-                onChange={(e) =>
-                  setGrants((g) => e.target.checked ? [...g, m.model_id] : g.filter((x) => x !== m.model_id))
-                }
-              />
-              {m.display_name} <span className="text-xs text-slate-400">{m.model_id}</span>
-            </label>
-          ))}
+        {enabledModels.length === 0 ? (
+          <p className="rounded-lg bg-slate-50 p-3 text-sm text-slate-400">
+            No enabled models yet. Enable some on the Models page first.
+          </p>
+        ) : (
+          <div className="space-y-2">
+            {enabledModels.map((m) => {
+              const checked = grants.includes(m.model_id);
+              return (
+                <label
+                  key={m.model_id}
+                  className={`flex cursor-pointer items-center gap-3 rounded-lg border p-3 transition ${
+                    checked
+                      ? "border-brand-300 bg-brand-50 ring-1 ring-brand-200"
+                      : "border-slate-200 hover:bg-slate-50"
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 accent-brand-500"
+                    checked={checked}
+                    onChange={(e) =>
+                      setGrants((g) => e.target.checked ? [...g, m.model_id] : g.filter((x) => x !== m.model_id))
+                    }
+                  />
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-slate-800">{m.display_name}</p>
+                    <p className="truncate font-mono text-xs text-slate-400">{m.model_id}</p>
+                  </div>
+                </label>
+              );
+            })}
+          </div>
+        )}
+        <div className="mt-3 text-xs text-slate-400">
+          {grants.length === 0
+            ? "Access: all enabled models"
+            : `Access restricted to ${grants.length} model${grants.length > 1 ? "s" : ""}`}
         </div>
         <div className="mt-4 flex justify-end gap-2">
           <Button variant="secondary" onClick={() => setModelUser(null)}>Cancel</Button>
@@ -192,9 +234,16 @@ export default function AdminUsers() {
             <Input type="password" value={editForm.password} placeholder="Leave blank to keep current"
               onChange={(e) => setEditForm({ ...editForm, password: e.target.value })} />
           </div>
-          <div className="flex justify-end gap-2">
-            <Button variant="secondary" onClick={() => setEditUser(null)}>Cancel</Button>
-            <Button onClick={saveEdit} disabled={saving}>Save</Button>
+          <div className="flex items-center justify-between gap-2 pt-1">
+            {editUser && editUser.id !== me?.id ? (
+              <Button variant="danger" onClick={() => { const u = editUser; setEditUser(null); setToDelete(u); }}>
+                Delete user
+              </Button>
+            ) : <span />}
+            <div className="flex gap-2">
+              <Button variant="secondary" onClick={() => setEditUser(null)}>Cancel</Button>
+              <Button onClick={saveEdit} disabled={saving}>Save</Button>
+            </div>
           </div>
         </div>
       </Modal>
@@ -209,6 +258,15 @@ export default function AdminUsers() {
           <Button onClick={() => { navigator.clipboard.writeText(linkDialog || ""); toast.success("Copied."); }}>Copy</Button>
         </div>
       </Modal>
+
+      <ConfirmDialog
+        open={!!toDelete}
+        title="Delete this user?"
+        message={<>Delete <span className="font-semibold text-slate-800">{toDelete?.full_name}</span> ({toDelete?.email})? Any projects, documents and SRS versions they created are kept and reassigned to you. This cannot be undone.</>}
+        busy={deleting}
+        onConfirm={confirmDelete}
+        onCancel={() => setToDelete(null)}
+      />
     </Layout>
   );
 }

@@ -4,7 +4,7 @@ import { apiDelete, apiGet, apiPost, apiPut } from "../lib/api";
 import { withToast } from "../lib/toast";
 import type { LlmModel } from "../lib/types";
 import { Layout } from "../components/Layout";
-import { Button, Card, Input, Label, Modal, Toggle } from "../components/ui";
+import { Button, Card, ConfirmDialog, Input, Label, Modal, Toggle } from "../components/ui";
 
 const empty = { model_id: "", display_name: "", description: "", is_enabled: true, is_default: false, sort_order: 0 };
 
@@ -15,6 +15,8 @@ export default function AdminModels() {
   const [editing, setEditing] = useState<LlmModel | null>(null);
   const [form, setForm] = useState({ ...empty });
   const [saving, setSaving] = useState(false);
+  const [toDelete, setToDelete] = useState<LlmModel | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   async function load() {
     setModels(await apiGet<LlmModel[]>("/admin/models"));
@@ -46,10 +48,12 @@ export default function AdminModels() {
     if (r) { setOpen(false); load(); }
   }
 
-  async function remove(m: LlmModel) {
-    if (!confirm(`Remove ${m.display_name}?`)) return;
-    await withToast(() => apiDelete(`/admin/models/${m.id}`), { success: "Removed.", error: "Delete failed" });
-    load();
+  async function confirmDelete() {
+    if (!toDelete) return;
+    setDeleting(true);
+    const r = await withToast(() => apiDelete(`/admin/models/${toDelete.id}`), { success: "Model removed.", error: "Delete failed" });
+    setDeleting(false);
+    if (r) { setToDelete(null); load(); }
   }
 
   return (
@@ -79,7 +83,7 @@ export default function AdminModels() {
                 <td><Toggle checked={m.is_default} onChange={(v) => patch(m, { is_default: v })} /></td>
                 <td className="flex gap-2 py-2">
                   <button className="text-slate-400 hover:text-brand-600" onClick={() => openEdit(m)}><Pencil className="h-4 w-4" /></button>
-                  <button className="text-slate-400 hover:text-red-600" onClick={() => remove(m)}><Trash2 className="h-4 w-4" /></button>
+                  <button className="text-slate-400 hover:text-red-600" onClick={() => setToDelete(m)}><Trash2 className="h-4 w-4" /></button>
                 </td>
               </tr>
             ))}
@@ -100,6 +104,15 @@ export default function AdminModels() {
           <div className="flex justify-end gap-2"><Button variant="secondary" onClick={() => setOpen(false)}>Cancel</Button><Button onClick={save} disabled={saving}>{editing ? "Save" : "Add"}</Button></div>
         </div>
       </Modal>
+
+      <ConfirmDialog
+        open={!!toDelete}
+        title="Delete this model?"
+        message={<>Remove <span className="font-semibold text-slate-800">{toDelete?.display_name}</span> from the model list? This cannot be undone.</>}
+        busy={deleting}
+        onConfirm={confirmDelete}
+        onCancel={() => setToDelete(null)}
+      />
     </Layout>
   );
 }

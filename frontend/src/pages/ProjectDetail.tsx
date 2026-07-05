@@ -48,9 +48,10 @@ export default function ProjectDetail() {
     if (!model) { toast.error("Select a model first"); return; }
     setStarting(true);
     const path = regen ? `/projects/${id}/regenerate` : `/projects/${id}/generate`;
+    // No `error` prefix — the server returns a clear, user-facing message (e.g. "API key not
+    // connected. Please contact your administrator.") which we surface verbatim.
     const job = await withToast(() => apiPost<Job>(path, { model_id: model }), {
       success: "Generation started…",
-      error: "Could not start",
     });
     setStarting(false);
     if (job) { setJobId(job.id); }

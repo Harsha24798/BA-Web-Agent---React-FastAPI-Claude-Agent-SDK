@@ -7,6 +7,7 @@ import Register from "./pages/Register";
 import SetPassword from "./pages/SetPassword";
 import Projects from "./pages/Projects";
 import ProjectDetail from "./pages/ProjectDetail";
+import AudioTranscript from "./pages/AudioTranscript";
 
 // Admin pages are lazy-loaded so regular users never download them or the heavy markdown editor.
 const AdminUsers = lazy(() => import("./pages/AdminUsers"));
@@ -35,6 +36,7 @@ export default function App() {
 
       <Route path="/projects" element={<RequireAuth><Projects /></RequireAuth>} />
       <Route path="/projects/:id" element={<RequireAuth><ProjectDetail /></RequireAuth>} />
+      <Route path="/audio" element={<RequireAuth><AudioTranscript /></RequireAuth>} />
 
       <Route path="/admin/users" element={<Admin><AdminUsers /></Admin>} />
       <Route path="/admin/models" element={<Admin><AdminModels /></Admin>} />

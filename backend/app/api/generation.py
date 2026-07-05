@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.exc import IntegrityError
@@ -10,10 +11,11 @@ from sqlalchemy.orm import Session
 from app.api.models import allowed_model_ids
 from app.auth.deps import require_active, require_admin
 from app.db.database import get_db
-from app.db.models import GenerationJob, Project, User
+from app.db.models import AppSettings, GenerationJob, Project, User
 from app.jobs.generation import run_job
 from app.jobs.manager import manager
 from app.schemas import GenerateIn, JobOut, MessageOut
+from app.services import settings_service as settings_svc
 from app.services import status as status_svc
 from app.services.settings_service import effective_anthropic_key
 
@@ -27,13 +29,39 @@ def _get_project(db: Session, project_id: str) -> Project:
     return project
 
 
-def _start_job(db: Session, project: Project, user: User, model_id: str, regen: bool) -> GenerationJob:
-    if not effective_anthropic_key():
+async def _ensure_anthropic_ready(db: Session) -> None:
+    """Block generation unless the Anthropic key is actually connected.
+
+    - No key at all -> clear 'not configured' error.
+    - Key present but status not yet 'connected' -> validate live now (and cache the result),
+      so a missing/invalid key fails immediately instead of starting a doomed job.
+    """
+    key = effective_anthropic_key()
+    if not key:
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST,
-            "SRS generation isn't set up yet — no AI API key is configured. "
+            "SRS generation isn't set up yet — the AI API key is not configured. "
             "Please contact your administrator.",
         )
+    row = db.get(AppSettings, settings_svc.SINGLETON_ID)
+    if row and row.anthropic_status == "connected":
+        return
+    # Not confirmed yet — test the key live (runs off the event loop).
+    conn_status, error = await asyncio.to_thread(settings_svc.test_anthropic, key)
+    row = settings_svc.get_or_create(db)
+    row.anthropic_status = conn_status
+    row.anthropic_error = error
+    row.anthropic_checked_at = datetime.now(timezone.utc)
+    db.commit()
+    if conn_status != "connected":
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            "The AI API key is not connected (it may be missing or invalid). "
+            "Please contact your administrator.",
+        )
+
+
+def _start_job(db: Session, project: Project, user: User, model_id: str, regen: bool) -> GenerationJob:
     if model_id not in allowed_model_ids(db, user):
         raise HTTPException(status.HTTP_403_FORBIDDEN, "You don't have access to that model")
     if status_svc.active_job(db, project.id):
@@ -64,6 +92,7 @@ async def generate(project_id: str, body: GenerateIn, user: User = Depends(requi
     if user.role != "admin" and project.current_srs_version_id:
         raise HTTPException(status.HTTP_403_FORBIDDEN,
                             "This project already has an SRS. Ask an admin to regenerate.")
+    await _ensure_anthropic_ready(db)
     job = _start_job(db, project, user, body.model_id, regen=bool(project.current_srs_version_id))
     return JobOut.model_validate(job)
 
@@ -72,6 +101,7 @@ async def generate(project_id: str, body: GenerateIn, user: User = Depends(requi
 async def regenerate(project_id: str, body: GenerateIn, admin: User = Depends(require_admin),
                      db: Session = Depends(get_db)):
     project = _get_project(db, project_id)
+    await _ensure_anthropic_ready(db)
     job = _start_job(db, project, admin, body.model_id, regen=True)
     return JobOut.model_validate(job)
 
