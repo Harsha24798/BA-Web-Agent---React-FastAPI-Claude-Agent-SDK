@@ -1,5 +1,16 @@
 import { ButtonHTMLAttributes, HTMLAttributes, InputHTMLAttributes, ReactNode, SelectHTMLAttributes, useEffect } from "react";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, CheckCircle2, HelpCircle, XCircle } from "lucide-react";
+
+/** Connection-status pill: connected / failed / unknown (used by Settings + MCP). */
+export function ConnBadge({ status }: { status: string }) {
+  const map: Record<string, [string, string, ReactNode]> = {
+    connected: ["Connected", "bg-emerald-100 text-emerald-800 ring-1 ring-emerald-200", <CheckCircle2 className="h-3.5 w-3.5" key="i" />],
+    failed: ["Failed", "bg-red-100 text-red-700 ring-1 ring-red-200", <XCircle className="h-3.5 w-3.5" key="i" />],
+    unknown: ["Not tested", "bg-slate-100 text-slate-500 ring-1 ring-slate-200", <HelpCircle className="h-3.5 w-3.5" key="i" />],
+  };
+  const [label, cls, icon] = map[status] || map.unknown;
+  return <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium ${cls}`}>{icon} {label}</span>;
+}
 
 export function Button({
   variant = "primary",

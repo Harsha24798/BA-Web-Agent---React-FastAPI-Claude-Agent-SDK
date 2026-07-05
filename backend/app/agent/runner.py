@@ -29,7 +29,9 @@ async def run_agent(
     """Execute a generation run. Returns (srs_json, sdk_session_id)."""
     from claude_agent_sdk import ClaudeAgentOptions, query
 
-    options = ClaudeAgentOptions(
+    from app.health import resolve_cli_path
+
+    opts: dict = dict(
         system_prompt=system_prompt,
         allowed_tools=allowed_tools or ["Read", "Glob", "Grep"],
         cwd=str(cwd),
@@ -37,6 +39,10 @@ async def run_agent(
         include_partial_messages=True,
         permission_mode="bypassPermissions",  # headless: never wait for a permission prompt
     )
+    cli = resolve_cli_path()
+    if cli:
+        opts["cli_path"] = cli
+    options = ClaudeAgentOptions(**opts)
 
     text_chunks: list[str] = []
     session_id: str | None = None

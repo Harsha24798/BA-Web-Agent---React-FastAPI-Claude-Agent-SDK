@@ -21,6 +21,12 @@ logger = logging.getLogger("ba-agent")
 def _startup() -> None:
     settings.ensure_dirs()
 
+    # Locate the Claude Code CLI and put its directory on PATH, so subprocesses can launch it
+    # regardless of which terminal started uvicorn. Logs the resolved path (or a warning).
+    from app.health import ensure_cli_on_path
+    cli = ensure_cli_on_path()
+    logger.info("Claude Code CLI: %s", cli or "NOT FOUND (set CLAUDE_CLI_PATH in .env)")
+
     # Health checks — fail loudly if Node / the Claude Code CLI are missing. The Anthropic API
     # key is NOT required at boot: an admin can set it later in Settings; generation is gated on it.
     try:

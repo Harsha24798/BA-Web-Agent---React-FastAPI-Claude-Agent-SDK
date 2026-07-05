@@ -1,20 +1,11 @@
 import { useEffect, useState } from "react";
-import { CheckCircle2, HelpCircle, Plug, Trash2, XCircle } from "lucide-react";
+import { Plug, RefreshCw, Trash2 } from "lucide-react";
 import { apiDelete, apiGet, apiPost, apiPut } from "../lib/api";
-import { withToast } from "../lib/toast";
-import type { AppSettings } from "../lib/types";
+import { toast, withToast } from "../lib/toast";
+import type { AppSettings, McpServer } from "../lib/types";
 import { Layout } from "../components/Layout";
-import { Button, Card, ConfirmDialog, Input, Label, Spinner } from "../components/ui";
-
-function StatusBadge({ status }: { status: string }) {
-  const map: Record<string, [string, string, JSX.Element]> = {
-    connected: ["Connected", "bg-emerald-100 text-emerald-800 ring-1 ring-emerald-200", <CheckCircle2 className="h-3.5 w-3.5" />],
-    failed: ["Failed", "bg-red-100 text-red-700 ring-1 ring-red-200", <XCircle className="h-3.5 w-3.5" />],
-    unknown: ["Not tested", "bg-slate-100 text-slate-500 ring-1 ring-slate-200", <HelpCircle className="h-3.5 w-3.5" />],
-  };
-  const [label, cls, icon] = map[status] || map.unknown;
-  return <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium ${cls}`}>{icon} {label}</span>;
-}
+import { Button, Card, ConfirmDialog, ConnBadge as StatusBadge, Input, Label, Spinner } from "../components/ui";
+import { McpServersSection } from "../components/McpServersSection";
 
 export default function Settings() {
   const [s, setS] = useState<AppSettings | null>(null);
@@ -22,6 +13,8 @@ export default function Settings() {
   const [smtp, setSmtp] = useState({ host: "", port: 587, user: "", password: "", from_addr: "" });
   const [busy, setBusy] = useState<string | null>(null);
   const [confirming, setConfirming] = useState<null | "key" | "smtp">(null);
+  const [mcpServers, setMcpServers] = useState<McpServer[]>([]);
+  const [mcpReload, setMcpReload] = useState(0);
 
   async function load() {
     const data = await apiGet<AppSettings>("/admin/settings");
@@ -38,13 +31,47 @@ export default function Settings() {
     return r;
   }
 
+  async function checkAll() {
+    setBusy("check-all");
+    try {
+      const r = await apiPost<{ settings: AppSettings; mcp: McpServer[] }>("/admin/settings/check-all");
+      setS(r.settings);
+      setMcpServers(r.mcp);
+      setMcpReload((x) => x + 1);
+      toast.success("Connection check complete.");
+    } catch (e: any) {
+      toast.error(e.message);
+    } finally {
+      setBusy(null);
+    }
+  }
+
   if (!s) {
     return <Layout><div className="flex items-center gap-2 p-4 text-slate-500"><Spinner /> Loading…</div></Layout>;
   }
 
+  const mcpConnected = mcpServers.filter((m) => m.status === "connected").length;
+
   return (
     <Layout>
-      <h1 className="mb-5 text-xl font-semibold">Settings</h1>
+      <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-xl font-semibold">Settings</h1>
+        <Button variant="secondary" onClick={checkAll} disabled={busy !== null}>
+          {busy === "check-all" ? <Spinner /> : <RefreshCw className="h-4 w-4" />} Check all connections
+        </Button>
+      </div>
+
+      {/* Connection health strip */}
+      <Card className="mb-6 flex flex-wrap items-center gap-x-6 gap-y-2 p-4">
+        <span className="flex items-center gap-2 text-sm text-slate-600">API key <StatusBadge status={s.anthropic_status} /></span>
+        <span className="flex items-center gap-2 text-sm text-slate-600">
+          Mail {s.smtp_host ? <StatusBadge status={s.smtp_status} /> : <span className="text-xs text-slate-400">not configured</span>}
+        </span>
+        <span className="flex items-center gap-2 text-sm text-slate-600">
+          MCP <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600 ring-1 ring-slate-200">{mcpConnected}/{mcpServers.length} connected</span>
+        </span>
+      </Card>
+
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Anthropic API key */}
         <Card className="p-5">
@@ -120,6 +147,8 @@ export default function Settings() {
           </div>
         </Card>
       </div>
+
+      <McpServersSection reloadToken={mcpReload} onChanged={setMcpServers} />
 
       <ConfirmDialog
         open={confirming === "key"}

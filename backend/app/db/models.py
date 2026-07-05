@@ -43,6 +43,9 @@ class User(Base):
     models: Mapped[list["UserModel"]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
     )
+    mcp_tools: Mapped[list["UserMcpTool"]] = relationship(
+        back_populates="user", cascade="all, delete-orphan"
+    )
 
 
 class AuthToken(Base):
@@ -242,4 +245,41 @@ class UserModel(Base):
 
     __table_args__ = (
         Index("ux_user_model", "user_id", "model_id", unique=True),
+    )
+
+
+class McpServer(Base):
+    """An admin-configured MCP server (SSE/HTTP). Managed on the Settings page."""
+
+    __tablename__ = "mcp_servers"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    name: Mapped[str] = mapped_column(String, unique=True)  # display name
+    slug: Mapped[str] = mapped_column(String, unique=True)  # SDK server key; immutable after create
+    transport: Mapped[str] = mapped_column(String, default="http")  # sse | http (no stdio)
+    url: Mapped[str] = mapped_column(String, default="")
+    headers_json: Mapped[str] = mapped_column(Text, default="[]")  # [{name, is_secret}]
+    secrets_ciphertext: Mapped[str] = mapped_column(Text, default="{}")  # enc {header_name: cipher}
+    status: Mapped[str] = mapped_column(String, default="unknown")  # unknown|connected|failed
+    last_checked_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    last_error: Mapped[str | None] = mapped_column(Text, nullable=True)  # redacted before storage
+    discovered_tools_json: Mapped[str] = mapped_column(Text, default="[]")  # [{name, description}]
+    is_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_by: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+
+
+class UserMcpTool(Base):
+    """Per-user grant of a single MCP tool (opt-in). tool_ref = mcp__{slug}__{tool_name}."""
+
+    __tablename__ = "user_mcp_tools"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.id"))
+    tool_ref: Mapped[str] = mapped_column(String)
+
+    user: Mapped[User] = relationship(back_populates="mcp_tools")
+
+    __table_args__ = (
+        Index("ux_user_mcp_tool", "user_id", "tool_ref", unique=True),
     )

@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { apiDelete, apiGet, apiPatch, apiPost, apiPut } from "../lib/api";
 import { useAuth } from "../auth/AuthContext";
 import { toast, withToast } from "../lib/toast";
-import type { LlmModel, User } from "../lib/types";
+import type { LlmModel, McpServer, User } from "../lib/types";
 import { Layout } from "../components/Layout";
 import { Button, Card, ConfirmDialog, Input, Label, Modal, Spinner, Toggle } from "../components/ui";
 
@@ -28,6 +28,9 @@ export default function AdminUsers() {
   const [saving, setSaving] = useState(false);
   const [toDelete, setToDelete] = useState<User | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [mcpUser, setMcpUser] = useState<User | null>(null);
+  const [mcpServers, setMcpServers] = useState<McpServer[]>([]);
+  const [mcpGrants, setMcpGrants] = useState<string[]>([]);
   const { user: me } = useAuth();
 
   // Only enabled models can be granted — disabled ones are hidden from the access picker.
@@ -82,6 +85,26 @@ export default function AdminUsers() {
     });
     setSaving(false);
     if (r) setModelUser(null);
+  }
+
+  async function openMcp(u: User) {
+    setMcpUser(u);
+    const [srv, grants] = await Promise.all([
+      apiGet<McpServer[]>("/admin/settings/mcp"),
+      apiGet<string[]>(`/users/${u.id}/mcp-tools`),
+    ]);
+    setMcpServers(srv.filter((s) => s.is_enabled));
+    setMcpGrants(grants);
+  }
+
+  async function saveMcp() {
+    if (!mcpUser || saving) return;
+    setSaving(true);
+    const r = await withToast(() => apiPut(`/users/${mcpUser.id}/mcp-tools`, { tool_refs: mcpGrants }), {
+      success: "MCP tool access updated.", error: "Save failed",
+    });
+    setSaving(false);
+    if (r) setMcpUser(null);
   }
 
   function openEdit(u: User) {
@@ -164,6 +187,7 @@ export default function AdminUsers() {
                       {u.role === "admin" ? "→ user" : "→ admin"}
                     </Button>
                     <Button variant="ghost" onClick={() => openModels(u)}>Models</Button>
+                    <Button variant="ghost" onClick={() => openMcp(u)}>MCP</Button>
                   </td>
                 </tr>
               ))}
@@ -221,6 +245,56 @@ export default function AdminUsers() {
         <div className="mt-4 flex justify-end gap-2">
           <Button variant="secondary" onClick={() => setModelUser(null)}>Cancel</Button>
           <Button onClick={saveModels} disabled={saving}>Save</Button>
+        </div>
+      </Modal>
+
+      {/* MCP tool access modal */}
+      <Modal open={!!mcpUser} onClose={() => setMcpUser(null)} title={`MCP access — ${mcpUser?.full_name}`}>
+        <p className="mb-4 text-sm text-slate-500">
+          Grant this user specific MCP tools. Nothing is granted by default — tick the tools they may use.
+        </p>
+        {mcpServers.length === 0 ? (
+          <p className="rounded-lg bg-slate-50 p-3 text-sm text-slate-400">
+            No enabled MCP servers. Add and connect one under Settings first.
+          </p>
+        ) : (
+          <div className="space-y-4">
+            {mcpServers.map((srv) => (
+              <div key={srv.id}>
+                <p className="mb-1 text-sm font-semibold text-slate-700">{srv.name}</p>
+                {srv.tools.length === 0 ? (
+                  <p className="pl-1 text-xs text-slate-400">No tools discovered — run a connection test in Settings.</p>
+                ) : (
+                  <div className="space-y-1.5">
+                    {srv.tools.map((t) => {
+                      const ref = `mcp__${srv.slug}__${t.name}`;
+                      const checked = mcpGrants.includes(ref);
+                      return (
+                        <label key={ref}
+                          className={`flex cursor-pointer items-center gap-3 rounded-lg border p-2.5 transition ${
+                            checked ? "border-brand-300 bg-brand-50 ring-1 ring-brand-200" : "border-slate-200 hover:bg-slate-50"
+                          }`}>
+                          <input type="checkbox" className="h-4 w-4 accent-brand-500" checked={checked}
+                            onChange={(e) => setMcpGrants((g) => e.target.checked ? [...g, ref] : g.filter((x) => x !== ref))} />
+                          <div className="min-w-0">
+                            <p className="truncate font-mono text-sm text-slate-800">{t.name}</p>
+                            {t.description && <p className="truncate text-xs text-slate-400">{t.description}</p>}
+                          </div>
+                        </label>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+        <div className="mt-3 text-xs text-slate-400">
+          {mcpGrants.length === 0 ? "No MCP tools granted" : `${mcpGrants.length} tool${mcpGrants.length > 1 ? "s" : ""} granted`}
+        </div>
+        <div className="mt-4 flex justify-end gap-2">
+          <Button variant="secondary" onClick={() => setMcpUser(null)}>Cancel</Button>
+          <Button onClick={saveMcp} disabled={saving}>Save</Button>
         </div>
       </Modal>
 

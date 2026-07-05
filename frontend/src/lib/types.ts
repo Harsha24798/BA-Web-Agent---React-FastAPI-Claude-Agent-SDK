@@ -84,6 +84,32 @@ export interface AgentTool {
   sort_order: number;
 }
 
+export interface McpHeader {
+  name: string;
+  is_secret: boolean;
+  value?: string | null;
+  value_hint?: string | null;
+}
+
+export interface McpTool {
+  name: string;
+  description: string;
+}
+
+export interface McpServer {
+  id: string;
+  name: string;
+  slug: string;
+  transport: "sse" | "http";
+  url: string;
+  headers: McpHeader[];
+  status: string; // unknown | connected | failed
+  last_checked_at: string | null;
+  last_error: string | null;
+  tools: McpTool[];
+  is_enabled: boolean;
+}
+
 export interface AppSettings {
   anthropic_key_set: boolean;
   anthropic_key_hint: string | null;

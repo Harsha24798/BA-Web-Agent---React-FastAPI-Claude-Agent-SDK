@@ -226,3 +226,52 @@ class SettingsOut(BaseModel):
     smtp_status: str
     smtp_checked_at: datetime | None = None
     smtp_error: str | None = None
+
+
+# ---------- MCP servers (admin) ----------
+class McpHeaderIn(BaseModel):
+    name: str = Field(min_length=1, max_length=200)
+    is_secret: bool = False
+    value: str | None = None  # for secret headers, omit/null on edit = keep stored value
+
+
+class McpServerIn(BaseModel):
+    name: str = Field(min_length=1, max_length=200)
+    transport: str = Field(default="http", pattern="^(sse|http)$")
+    url: str = Field(min_length=1, max_length=2000)
+    headers: list[McpHeaderIn] = []
+    is_enabled: bool = True
+
+
+class McpToggleIn(BaseModel):
+    is_enabled: bool
+
+
+class McpHeaderOut(BaseModel):
+    name: str
+    is_secret: bool
+    value: str | None = None       # non-secret headers echo the value
+    value_hint: str | None = None  # secret headers only a masked hint
+
+
+class McpToolOut(BaseModel):
+    name: str
+    description: str = ""
+
+
+class McpServerOut(BaseModel):
+    id: str
+    name: str
+    slug: str
+    transport: str
+    url: str
+    headers: list[McpHeaderOut]
+    status: str
+    last_checked_at: datetime | None = None
+    last_error: str | None = None
+    tools: list[McpToolOut]
+    is_enabled: bool
+
+
+class UserMcpToolsIn(BaseModel):
+    tool_refs: list[str]

@@ -15,6 +15,10 @@ class Settings(BaseSettings):
     # Anthropic
     anthropic_api_key: str = ""
 
+    # Optional explicit path to the Claude Code CLI (else auto-detected from PATH / common
+    # install locations). Set this if the backend can't launch `claude`.
+    claude_cli_path: str = ""
+
     # Security
     jwt_secret: str = "change-me"
     jwt_expire_minutes: int = 720

@@ -111,6 +111,22 @@ Auth levels: **public**, **active** (any active user), **admin**. FastAPI serves
 Generation returns **400** ("…no AI API key is configured. Please contact your administrator.")
 when no effective key exists (neither DB setting nor `.env`).
 
+### MCP servers (admin, registry-only)
+
+| Method | Path | Notes |
+|--------|------|-------|
+| GET | `/admin/settings/mcp` | list servers (secrets masked; incl. status + discovered tools) |
+| POST | `/admin/settings/mcp` | add `{name, transport(sse/http), url, headers[], is_enabled}` |
+| PUT | `/admin/settings/mcp/{id}` | edit (slug immutable; omitted secret kept; resets status) |
+| POST | `/admin/settings/mcp/{id}/toggle` | `{is_enabled}` |
+| POST | `/admin/settings/mcp/{id}/test` | live probe → status + discovered tools |
+| DELETE | `/admin/settings/mcp/{id}` | remove server + its per-user grants |
+| POST | `/admin/settings/check-all` | re-test API key + mail + all MCPs; returns `{settings, mcp}` |
+| GET/PUT | `/users/{id}/mcp-tools` | `{tool_refs: []}` per-user MCP tool grants (opt-in; `mcp__slug__tool`) |
+
+MCP tools are **not yet passed to the SRS-generation agent** — this is registry + access management;
+grants are stored for a future generation-wiring step.
+
 ## Conventions
 
 - Errors return `{detail: "..."}` with appropriate HTTP status (400/401/403/404/409/422).

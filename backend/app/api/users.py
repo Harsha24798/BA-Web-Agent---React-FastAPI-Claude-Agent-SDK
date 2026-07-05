@@ -25,8 +25,9 @@ from app.db.models import (
     Template,
     User,
     UserModel,
+    UserMcpTool,
 )
-from app.schemas import MessageOut, RoleIn, UserEditIn, UserModelsIn, UserOut
+from app.schemas import MessageOut, RoleIn, UserEditIn, UserMcpToolsIn, UserModelsIn, UserOut
 from app.services import email as email_service
 
 router = APIRouter(prefix="/users", tags=["users"], dependencies=[Depends(require_admin)])
@@ -181,4 +182,21 @@ def set_user_models(user_id: str, body: UserModelsIn, db: Session = Depends(get_
 def get_user_models(user_id: str, db: Session = Depends(get_db)) -> list[str]:
     _get_user(db, user_id)
     rows = db.scalars(select(UserModel.model_id).where(UserModel.user_id == user_id))
+    return list(rows)
+
+
+@router.put("/{user_id}/mcp-tools", response_model=MessageOut)
+def set_user_mcp_tools(user_id: str, body: UserMcpToolsIn, db: Session = Depends(get_db)):
+    user = _get_user(db, user_id)
+    db.query(UserMcpTool).filter(UserMcpTool.user_id == user.id).delete()
+    for ref in set(body.tool_refs):
+        db.add(UserMcpTool(user_id=user.id, tool_ref=ref))
+    db.commit()
+    return MessageOut(detail="MCP tool access updated.")
+
+
+@router.get("/{user_id}/mcp-tools", response_model=list[str])
+def get_user_mcp_tools(user_id: str, db: Session = Depends(get_db)) -> list[str]:
+    _get_user(db, user_id)
+    rows = db.scalars(select(UserMcpTool.tool_ref).where(UserMcpTool.user_id == user_id))
     return list(rows)
