@@ -110,6 +110,23 @@ export interface McpServer {
   is_enabled: boolean;
 }
 
+export interface RunSummary {
+  model: string;
+  duration_ms: number | null;
+  input_tokens: number | null;
+  output_tokens: number | null;
+  total_cost_usd: number | null;
+  num_turns: number | null;
+  tool_calls: number;
+  version_no?: number;
+}
+
+export interface TermLine {
+  kind: string; // info | tool | mcp | text | done | error
+  text: string;
+  ts?: string;
+}
+
 export interface AppSettings {
   anthropic_key_set: boolean;
   anthropic_key_hint: string | null;

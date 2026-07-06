@@ -6,11 +6,12 @@ import json
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import StreamingResponse
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.auth.deps import require_active
 from app.db.database import get_db
-from app.db.models import GenerationJob, User
+from app.db.models import GenerationJob, JobEvent, User
 from app.jobs.manager import manager
 
 router = APIRouter(prefix="/projects", tags=["streaming"])
@@ -33,16 +34,24 @@ async def stream_job(project_id: str, job_id: str, user: User = Depends(require_
         "type": "progress", "phase": job.phase, "percent": job.percent,
         "current_activity": job.current_activity, "status": job.status,
     }
+    # Persisted terminal log + summary lines, in order, for replay on (re)connect.
+    stored = [json.loads(e.payload_json) for e in db.scalars(
+        select(JobEvent).where(JobEvent.job_id == job_id).order_by(JobEvent.seq)
+    )]
     done_snapshot = None
     if terminal:
+        summary = next((e for e in reversed(stored) if e.get("type") == "summary"), None)
         done_snapshot = {
-            "type": "done", "status": job.status,
-            "error": job.error_message,
+            "type": "done", "status": job.status, "error": job.error_message,
+            "summary": {k: v for k, v in (summary or {}).items()
+                        if k not in ("type", "seq")} or None,
         }
 
     async def event_gen():
-        # 1) replay current state immediately
+        # 1) replay current state + stored terminal lines immediately
         yield _sse(snapshot)
+        for e in stored:
+            yield _sse(e)
         if done_snapshot is not None:
             yield _sse(done_snapshot)
             return

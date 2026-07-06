@@ -5,6 +5,7 @@ import json
 import logging
 import re
 from collections.abc import Awaitable, Callable
+from dataclasses import dataclass
 from pathlib import Path
 
 logging.getLogger("ba-agent.runner")
@@ -17,6 +18,29 @@ class AgentError(RuntimeError):
     pass
 
 
+@dataclass
+class RunMetrics:
+    """Cost/usage figures the SDK reports on its final ResultMessage (all best-effort)."""
+    duration_ms: int | None = None
+    input_tokens: int | None = None
+    output_tokens: int | None = None
+    total_cost_usd: float | None = None
+    num_turns: int | None = None
+    model: str | None = None
+
+
+def _extract_metrics(message, model: str) -> RunMetrics:
+    m = RunMetrics(model=model)
+    m.duration_ms = getattr(message, "duration_ms", None)
+    m.total_cost_usd = getattr(message, "total_cost_usd", None)
+    m.num_turns = getattr(message, "num_turns", None)
+    usage = getattr(message, "usage", None)
+    if isinstance(usage, dict):
+        m.input_tokens = usage.get("input_tokens")
+        m.output_tokens = usage.get("output_tokens")
+    return m
+
+
 async def run_agent(
     *,
     system_prompt: str,
@@ -25,8 +49,8 @@ async def run_agent(
     model: str,
     run_prompt: str,
     on_event: EventCB,
-) -> tuple[dict, str | None]:
-    """Execute a generation run. Returns (srs_json, sdk_session_id)."""
+) -> tuple[dict, str | None, RunMetrics]:
+    """Execute a generation run. Returns (srs_json, sdk_session_id, metrics)."""
     from claude_agent_sdk import ClaudeAgentOptions, query
 
     from app.health import resolve_cli_path
@@ -46,6 +70,7 @@ async def run_agent(
 
     text_chunks: list[str] = []
     session_id: str | None = None
+    metrics = RunMetrics(model=model)
 
     # Hold the async generator so we can close it deterministically (reaping the Claude Code CLI
     # child process) on cancel/error, instead of relying on garbage collection.
@@ -74,6 +99,7 @@ async def run_agent(
             elif cls in ("StreamEvent", "PartialAssistantMessage"):
                 await on_event("partial", {})
             elif cls == "ResultMessage":
+                metrics = _extract_metrics(message, model)
                 if getattr(message, "is_error", False):
                     raise AgentError(getattr(message, "result", None) or "Agent returned an error")
                 result_text = getattr(message, "result", None)
@@ -91,7 +117,7 @@ async def run_agent(
     data = _extract_json(full)
     if data is None:
         raise AgentError("The agent did not return a valid JSON SRS.")
-    return data, session_id
+    return data, session_id, metrics
 
 
 def _extract_json(text: str) -> dict | None:

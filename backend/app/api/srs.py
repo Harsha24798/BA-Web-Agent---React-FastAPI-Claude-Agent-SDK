@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.auth.deps import require_active
 from app.db.database import get_db
-from app.db.models import SrsVersion, User
+from app.db.models import JobEvent, SrsVersion, User
 from app.schemas import VersionOut
 
 router = APIRouter(prefix="/projects", tags=["srs"])
@@ -49,6 +49,23 @@ def version_meta(project_id: str, n: int, user: User = Depends(require_active),
         data = json.loads(Path(v.json_path).read_text(encoding="utf-8"))
     return {"version_no": v.version_no, "model_id": v.model_id,
             "host_sync_status": v.host_sync_status, "srs": data}
+
+
+@router.get("/{project_id}/versions/{n}/report")
+def version_report(project_id: str, n: int, user: User = Depends(require_active),
+                   db: Session = Depends(get_db)):
+    """The generation run report (cost/time summary + terminal log) for a version's job."""
+    v = _get_version(db, project_id, n)
+    if not v.job_id:
+        return {"summary": None, "events": []}
+    stored = [json.loads(e.payload_json) for e in db.scalars(
+        select(JobEvent).where(JobEvent.job_id == v.job_id).order_by(JobEvent.seq)
+    )]
+    summary = next((e for e in reversed(stored) if e.get("type") == "summary"), None)
+    if summary:
+        summary = {k: val for k, val in summary.items() if k not in ("type", "seq")}
+    events = [e for e in stored if e.get("type") == "log"]
+    return {"summary": summary, "events": events}
 
 
 @router.get("/{project_id}/versions/{n}/download/{fmt}")

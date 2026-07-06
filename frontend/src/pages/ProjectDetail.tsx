@@ -3,7 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { AlertTriangle, Download, FileText, Trash2, Sparkles, RefreshCw } from "lucide-react";
 import { apiDelete, apiGet, apiPost, downloadFile } from "../lib/api";
 import { toast, withToast } from "../lib/toast";
-import type { DocumentItem, Job, ProjectDetail as PD } from "../lib/types";
+import type { DocumentItem, Job, ProjectDetail as PD, RunSummary } from "../lib/types";
 import { useAuth } from "../auth/AuthContext";
 import { Layout } from "../components/Layout";
 import { Button, Card, Modal, Spinner } from "../components/ui";
@@ -11,6 +11,7 @@ import { HostBadge, StatusBadge, UploadBadge } from "../components/StatusBadge";
 import { FileUpload } from "../components/FileUpload";
 import { ModelSelect } from "../components/ModelSelect";
 import { GenerationProgress } from "../components/GenerationProgress";
+import { RunSummaryCard } from "../components/RunSummaryCard";
 import { HostSyncPanel } from "../components/HostSyncPanel";
 
 export default function ProjectDetail() {
@@ -23,18 +24,29 @@ export default function ProjectDetail() {
   const [starting, setStarting] = useState(false);
   const [docToDelete, setDocToDelete] = useState<DocumentItem | null>(null);
   const [downloading, setDownloading] = useState(false);
+  const [report, setReport] = useState<RunSummary | null>(null);
 
   async function load() {
     try {
       const p = await apiGet<PD>(`/projects/${id}`);
       setProject(p);
-      setJobId(p.active_job_id);
+      // Adopt a server-side active job; otherwise keep whatever terminal we're already showing.
+      setJobId((cur) => p.active_job_id ?? cur);
     } catch (e: any) {
       toast.error(e.message);
     }
   }
 
   useEffect(() => { load(); }, [id]);
+
+  // Load the saved run report for the current version (shown when no live terminal is up).
+  useEffect(() => {
+    const v = project?.current_version_no;
+    if (!project || v == null) { setReport(null); return; }
+    apiGet<{ summary: RunSummary | null }>(`/projects/${id}/versions/${v}/report`)
+      .then((r) => setReport(r.summary))
+      .catch(() => setReport(null));
+  }, [id, project?.current_version_no]);
 
   if (!project) {
     return <Layout><div className="flex items-center gap-2 text-slate-500"><Spinner /> Loading…</div></Layout>;
@@ -59,8 +71,8 @@ export default function ProjectDetail() {
 
   async function onDone(status: string) {
     if (status === "completed") toast.success("SRS generated successfully.");
+    // Reload for downloads/host-sync, but keep the finished terminal + summary visible until dismissed.
     await load();
-    setJobId(null);
   }
 
   async function confirmRemoveDoc() {
@@ -140,7 +152,8 @@ export default function ProjectDetail() {
           <h2 className="mb-3 font-semibold">Generate SRS</h2>
 
           {jobId ? (
-            <GenerationProgress projectId={id} jobId={jobId} onDone={onDone} />
+            <GenerationProgress projectId={id} jobId={jobId} onDone={onDone}
+                                onDismiss={() => setJobId(null)} />
           ) : (
             <div className="space-y-4">
               <ModelSelect value={model} onChange={setModel} />
@@ -173,6 +186,12 @@ export default function ProjectDetail() {
                   </Button>
                 ))}
               </div>
+              {!jobId && report && (
+                <div className="mt-4">
+                  <p className="mb-2 text-xs font-medium uppercase tracking-wide text-slate-400">Run report</p>
+                  <RunSummaryCard s={report} />
+                </div>
+              )}
               <div className="mt-4">
                 <HostSyncPanel
                   projectId={id}

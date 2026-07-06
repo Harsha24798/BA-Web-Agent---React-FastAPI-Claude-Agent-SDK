@@ -195,6 +195,19 @@ class GenerationJob(Base):
     )
 
 
+class JobEvent(Base):
+    """A single terminal-log line or the final summary for a generation job (for live replay)."""
+
+    __tablename__ = "job_events"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    job_id: Mapped[str] = mapped_column(ForeignKey("generation_jobs.id"), index=True)
+    seq: Mapped[int] = mapped_column(Integer, default=0)
+    ts: Mapped[datetime] = mapped_column(DateTime, default=_now)
+    etype: Mapped[str] = mapped_column(String, default="log")  # log | summary
+    payload_json: Mapped[str] = mapped_column(Text, default="{}")
+
+
 class LlmModel(Base):
     __tablename__ = "llm_models"
 

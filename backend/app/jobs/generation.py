@@ -11,7 +11,7 @@ from app.agent import prompt as prompt_mod
 from app.agent.runner import run_agent
 from app.config import settings
 from app.db.database import SessionLocal
-from app.db.models import Document, GenerationJob, Project, User
+from app.db.models import Document, GenerationJob, LlmModel, Project, User
 from app.jobs.manager import manager
 from app.services import srs_output, status as status_svc
 from app.services import email as email_service
@@ -35,6 +35,7 @@ class _Progress:
         self.docs_read = 0
         self.think_ticks = 0
         self.draft_ticks = 0
+        self.tool_calls = 0
         self.last_pct = 0  # progress only ever climbs
 
     def bump(self, phase: str, frac: float = 0.0) -> int:
@@ -89,6 +90,8 @@ async def run_job(job_id: str) -> None:
         ))
         prog = _Progress(len(docs))
         model_id = job.model_id
+        model_row = db.scalar(select(LlmModel).where(LlmModel.model_id == model_id))
+        model_display = model_row.display_name if model_row else model_id
         template = prompt_mod.active_template(db)
         template_id = template.id if template else None
         system_prompt = prompt_mod.build_system_prompt(db)
@@ -107,17 +110,35 @@ async def run_job(job_id: str) -> None:
             "percent": prog.bump(phase, frac), "current_activity": activity,
         })
 
+    async def log(text: str, kind: str = "info") -> None:
+        await manager.publish(job_id, {
+            "type": "log", "seq": manager.next_seq(job_id),
+            "ts": datetime.now(timezone.utc).isoformat(), "kind": kind, "text": text,
+        }, persist=False, persist_event=True)
+
     async def on_event(kind: str, payload: dict) -> None:
         if kind == "tool_use":
             name = payload.get("name", "")
+            prog.tool_calls += 1
+            inp = payload.get("input", {}) or {}
+            target = inp.get("file_path") or inp.get("pattern") or inp.get("path") or ""
+            if name.startswith("mcp__"):
+                parts = name.split("__")
+                srv = parts[1] if len(parts) > 1 else "?"
+                tool = parts[2] if len(parts) > 2 else name
+                await log(f"{srv} · {tool}{(' ' + str(target)) if target else ''}", kind="mcp")
+            else:
+                await log(f"{name}{(' · ' + str(target)) if target else ''}", kind="tool")
             if name in ("Read", "Glob", "Grep"):
                 prog.docs_read += 1
                 frac = min(1.0, prog.docs_read / prog.total_docs)
-                target = payload.get("input", {}).get("file_path") or name
-                await emit("reading_docs", frac, f"Reading documents ({target})")
+                await emit("reading_docs", frac, f"Reading documents ({target or name})")
         elif kind == "text":
             prog.draft_ticks += 1
             frac = prog.draft_ticks / (prog.draft_ticks + 8)  # climbs toward the phase top
+            snippet = " ".join((payload.get("text") or "").split())[:200]
+            if snippet:
+                await log(snippet, kind="text")
             await emit("drafting_srs", frac, "Drafting the SRS…")
         elif kind == "partial":
             prog.think_ticks += 1
@@ -126,7 +147,10 @@ async def run_job(job_id: str) -> None:
 
     try:
         await emit("preparing", 0.5, "Preparing workspace…")
-        data, session_id = await run_agent(
+        await log(f"model: {model_display}", kind="info")
+        await log(f"tools: {', '.join(tools) or 'Read, Glob, Grep'}", kind="info")
+        await log(f"reading {len(docs)} document(s)…", kind="info")
+        data, session_id, metrics = await run_agent(
             system_prompt=system_prompt,
             allowed_tools=tools,
             cwd=workspace,
@@ -144,6 +168,26 @@ async def run_job(job_id: str) -> None:
         )
         await emit("finalizing", 1.0, "Finalizing…")
 
+        # Build the run cost/time summary from the SDK metrics.
+        cost_summary = {
+            "model": model_display,
+            "duration_ms": metrics.duration_ms,
+            "input_tokens": metrics.input_tokens,
+            "output_tokens": metrics.output_tokens,
+            "total_cost_usd": metrics.total_cost_usd,
+            "num_turns": metrics.num_turns,
+            "tool_calls": prog.tool_calls,
+            "version_no": version_no,
+        }
+        await manager.publish(job_id, {
+            "type": "summary", "seq": manager.next_seq(job_id), **cost_summary,
+        }, persist=False, persist_event=True)
+        secs = (metrics.duration_ms / 1000) if metrics.duration_ms else None
+        cost = f"${metrics.total_cost_usd:.4f}" if metrics.total_cost_usd is not None else "n/a"
+        toks = (f"{metrics.input_tokens or 0} in / {metrics.output_tokens or 0} out")
+        await log(f"completed in {secs:.1f}s · {toks} tokens · {cost}"
+                  if secs is not None else f"completed · {toks} tokens · {cost}", kind="done")
+
         if trigger_email:
             # smtplib is blocking (and can stall for its full timeout) — keep it off the loop.
             await asyncio.to_thread(
@@ -152,6 +196,7 @@ async def run_job(job_id: str) -> None:
             )
         await manager.publish(job_id, {
             "type": "done", "status": "completed", "srs_version": version_no,
+            "summary": cost_summary,
         }, persist=False)
 
     except (Exception, asyncio.CancelledError) as e:
@@ -165,6 +210,14 @@ async def run_job(job_id: str) -> None:
                 job.error_message = msg
                 job.finished_at = datetime.now(timezone.utc)
                 db.commit()
+        try:
+            await manager.publish(job_id, {
+                "type": "log", "seq": manager.next_seq(job_id),
+                "ts": datetime.now(timezone.utc).isoformat(),
+                "kind": "error", "text": msg,
+            }, persist=False, persist_event=True)
+        except Exception:  # noqa: BLE001
+            pass
         await manager.publish(job_id, {
             "type": "done", "status": "cancelled" if cancelled else "failed", "error": msg,
         }, persist=False)

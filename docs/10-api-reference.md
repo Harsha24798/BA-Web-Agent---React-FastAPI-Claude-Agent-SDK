@@ -62,8 +62,12 @@ Auth levels: **public**, **active** (any active user), **admin**. FastAPI serves
 | POST | `/projects/{id}/generate` | active | `{model_id}` — allowed only if `srs_status='none'` for users; 409 if a job is active |
 | POST | `/projects/{id}/regenerate` | **admin** | `{model_id}` — creates a new version |
 | GET | `/projects/{id}/jobs/{jobId}` | active | job status snapshot |
-| GET | `/projects/{id}/jobs/{jobId}/stream` | active | **SSE** progress (replay + live) |
+| GET | `/projects/{id}/jobs/{jobId}/stream` | active | **SSE** — replays persisted progress + terminal log (`log`/`summary` events) then tails live; `done` carries the cost summary |
 | POST | `/projects/{id}/jobs/{jobId}/cancel` | active (owner/admin) | cancel a running job |
+
+The stream emits typed SSE events: `progress` (phase/percent), `log` (a terminal line: `kind` ∈
+info/tool/mcp/text/done/error), `summary` (cost/time), and `done`. Lines persist to `job_events` so a
+refresh mid-run replays the whole terminal.
 
 ## SRS outputs
 
@@ -72,6 +76,7 @@ Auth levels: **public**, **active** (any active user), **admin**. FastAPI serves
 | GET | `/projects/{id}/versions` | active | version history |
 | GET | `/projects/{id}/versions/{n}/download/{fmt}` | active | `fmt` ∈ `md,json,docx,pdf` |
 | GET | `/projects/{id}/versions/{n}` | active | version metadata (from srs.json) |
+| GET | `/projects/{id}/versions/{n}/report` | active | run report: `{summary, events}` (cost/time + terminal log) for that version's job |
 
 ## Host storage
 
