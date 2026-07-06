@@ -26,8 +26,9 @@ export function Layout({ children }: { children: ReactNode }) {
         <div className="mx-auto flex max-w-screen-2xl items-center justify-between gap-4 px-6 py-3">
           <div className="flex min-w-0 items-center gap-4">
             <Link to="/projects" className="flex shrink-0 items-center gap-2 whitespace-nowrap font-semibold text-slate-800">
-              <span className="rounded-md bg-brand-500 px-2 py-1 text-xs text-white">BA</span>
-              Agent · SRS Generator
+              <img src="/logo.png" alt="Centrics" className="h-7 w-auto" />
+              <span className="text-slate-300">·</span>
+              {/* <span className="text-slate-600">BA Agent</span> */}
             </Link>
             <nav className="flex min-w-0 items-center gap-1 overflow-x-auto">
               <NavLink to="/projects">Projects</NavLink>
@@ -36,8 +37,8 @@ export function Layout({ children }: { children: ReactNode }) {
                 <>
                   <NavLink to="/admin/users">Users</NavLink>
                   <NavLink to="/admin/models">Models</NavLink>
-                  <NavLink to="/admin/master-prompt">Master Prompt</NavLink>
                   <NavLink to="/admin/tools">Tools</NavLink>
+                  <NavLink to="/admin/master-prompt">Master Prompt</NavLink>
                   <NavLink to="/admin/template">Template</NavLink>
                   <NavLink to="/admin/settings">Settings</NavLink>
                 </>

@@ -1,7 +1,7 @@
 import { lazy, Suspense } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import { RequireAdmin, RequireAuth } from "./auth/guards";
-import { Spinner } from "./components/ui";
+import { FullPageLoader } from "./components/FullPageLoader";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import SetPassword from "./pages/SetPassword";
@@ -20,7 +20,7 @@ const Settings = lazy(() => import("./pages/Settings"));
 function Admin({ children }: { children: React.ReactNode }) {
   return (
     <RequireAdmin>
-      <Suspense fallback={<div className="flex items-center gap-2 p-8 text-slate-500"><Spinner /> Loading…</div>}>
+      <Suspense fallback={<FullPageLoader />}>
         {children}
       </Suspense>
     </RequireAdmin>

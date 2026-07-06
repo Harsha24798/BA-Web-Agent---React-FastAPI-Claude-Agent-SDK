@@ -27,7 +27,8 @@ export default function Register() {
     <div className="flex min-h-screen items-center justify-center p-4">
       <Card className="w-full max-w-sm p-6">
         <div className="mb-6 text-center">
-          <div className="mx-auto mb-2 inline-block rounded-lg bg-brand-500 px-3 py-1.5 text-sm font-bold text-white">BA Agent</div>
+          <img src="/logo.png" alt="Centrics" className="mx-auto mb-2 h-9 w-auto" />
+          <p className="mb-3 text-sm font-medium text-slate-500">BA Agent</p>
           <h1 className="text-lg font-semibold">Create an account</h1>
         </div>
         {done ? (
