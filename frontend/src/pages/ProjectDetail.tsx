@@ -3,7 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { AlertTriangle, Download, FileText, Trash2, Sparkles, RefreshCw } from "lucide-react";
 import { apiDelete, apiGet, apiPost, downloadFile } from "../lib/api";
 import { toast, withToast } from "../lib/toast";
-import type { DocumentItem, Job, ProjectDetail as PD, RunSummary } from "../lib/types";
+import type { DocumentItem, Job, ProjectDetail as PD } from "../lib/types";
 import { useAuth } from "../auth/AuthContext";
 import { Layout } from "../components/Layout";
 import { Button, Card, Modal, Spinner } from "../components/ui";
@@ -11,8 +11,8 @@ import { HostBadge, StatusBadge, UploadBadge } from "../components/StatusBadge";
 import { FileUpload } from "../components/FileUpload";
 import { ModelSelect } from "../components/ModelSelect";
 import { GenerationProgress } from "../components/GenerationProgress";
-import { RunSummaryCard } from "../components/RunSummaryCard";
 import { HostSyncPanel } from "../components/HostSyncPanel";
+import { VersionCard } from "../components/VersionCard";
 
 export default function ProjectDetail() {
   const { id = "" } = useParams();
@@ -24,7 +24,6 @@ export default function ProjectDetail() {
   const [starting, setStarting] = useState(false);
   const [docToDelete, setDocToDelete] = useState<DocumentItem | null>(null);
   const [downloading, setDownloading] = useState(false);
-  const [report, setReport] = useState<RunSummary | null>(null);
 
   async function load() {
     try {
@@ -38,15 +37,6 @@ export default function ProjectDetail() {
   }
 
   useEffect(() => { load(); }, [id]);
-
-  // Load the saved run report for the current version (shown when no live terminal is up).
-  useEffect(() => {
-    const v = project?.current_version_no;
-    if (!project || v == null) { setReport(null); return; }
-    apiGet<{ summary: RunSummary | null }>(`/projects/${id}/versions/${v}/report`)
-      .then((r) => setReport(r.summary))
-      .catch(() => setReport(null));
-  }, [id, project?.current_version_no]);
 
   if (!project) {
     return <Layout><div className="flex items-center gap-2 text-slate-500"><Spinner /> Loading…</div></Layout>;
@@ -109,7 +99,9 @@ export default function ProjectDetail() {
     <Layout>
       <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold">{project.name}</h1>
+          <h1 className="text-xl font-semibold">
+            {project.name}{v != null ? ` - V${v}` : ""}
+          </h1>
           <div className="mt-1 flex flex-wrap gap-2">
             <UploadBadge count={project.documents.length} />
             <StatusBadge status={jobId ? "generating" : project.srs_status} />
@@ -186,12 +178,6 @@ export default function ProjectDetail() {
                   </Button>
                 ))}
               </div>
-              {!jobId && report && (
-                <div className="mt-4">
-                  <p className="mb-2 text-xs font-medium uppercase tracking-wide text-slate-400">Run report</p>
-                  <RunSummaryCard s={report} />
-                </div>
-              )}
               <div className="mt-4">
                 <HostSyncPanel
                   projectId={id}
@@ -205,32 +191,16 @@ export default function ProjectDetail() {
         </Card>
       </div>
 
-      {/* Version history */}
+      {/* Version history — one card per version */}
       {project.versions.length > 0 && (
-        <Card className="mt-6 p-5">
+        <div className="mt-6">
           <h2 className="mb-3 font-semibold">Version history</h2>
-          <div className="space-y-2">
+          <div className="space-y-4">
             {project.versions.map((ver) => (
-              <div key={ver.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-100 px-3 py-2">
-                <div className="flex items-center gap-3">
-                  <span className="font-medium">v{ver.version_no}</span>
-                  <span className="text-xs text-slate-400">{ver.model_id}</span>
-                  <span className="text-xs text-slate-400">{new Date(ver.created_at).toLocaleString()}</span>
-                  <HostBadge status={ver.host_sync_status} />
-                </div>
-                <div className="flex gap-1">
-                  {["md", "json", "docx", "pdf"].map((fmt) => (
-                    <button key={fmt} disabled={downloading}
-                      onClick={() => download(ver.version_no, fmt)}
-                      className="rounded px-2 py-1 text-xs text-brand-600 hover:bg-brand-50 disabled:opacity-50">
-                      {fmt}
-                    </button>
-                  ))}
-                </div>
-              </div>
+              <VersionCard key={ver.id} projectId={id} projectName={project.name} version={ver} />
             ))}
           </div>
-        </Card>
+        </div>
       )}
 
       <Modal open={!!docToDelete} onClose={() => setDocToDelete(null)} title="Delete this document?">

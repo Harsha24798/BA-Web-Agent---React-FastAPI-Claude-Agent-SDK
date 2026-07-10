@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import shutil
 from datetime import datetime, timezone
 from pathlib import Path
@@ -82,7 +83,40 @@ def normalize_srs(data: dict) -> dict:
         r["priority"] = _coerce_priority(r.get("priority"))
         fixed.append(r)
     data["requirements"] = fixed
+
+    # Diagrams: heal ids/titles and DROP any entry without real Mermaid source so one bad diagram
+    # can't fail the whole run.
+    diagrams = data.get("diagrams")
+    diagrams = diagrams if isinstance(diagrams, list) else []
+    fixed_diagrams: list[dict] = []
+    used_ids: set[str] = set()
+    for i, d in enumerate(diagrams, start=1):
+        if not isinstance(d, dict):
+            continue
+        mermaid = str(d.get("mermaid") or "").strip()
+        if not mermaid:
+            continue  # nothing to render — skip
+        # IDs double as URL path segments and filenames → force them URL/filesystem-safe and unique.
+        safe = _safe_id(d.get("id", ""), f"DGM-{i:03d}")
+        base, k = safe, 2
+        while safe in used_ids:
+            safe = f"{base}-{k}"
+            k += 1
+        used_ids.add(safe)
+        d["id"] = safe
+        d["title"] = str(d.get("title") or safe).strip() or safe
+        d["type"] = str(d.get("type") or "").strip()
+        d["description"] = str(d.get("description") or "")
+        d["mermaid"] = mermaid
+        fixed_diagrams.append(d)
+    data["diagrams"] = fixed_diagrams
     return data
+
+
+def _safe_id(name: str, fallback: str) -> str:
+    """Sanitize a model-chosen id so it's safe as a URL path segment and a filename."""
+    safe = re.sub(r"[^A-Za-z0-9._-]+", "-", str(name)).strip("-.") or fallback
+    return safe[:80]
 
 
 def validate_srs(data: dict) -> None:
@@ -157,6 +191,17 @@ def render_markdown(data: dict) -> str:
         for q in oq:
             flag = " **(blocking)**" if q.get("blocking") else ""
             lines.append(f"- {q.get('id','')}: {q.get('question','')}{flag}")
+
+    diagrams = data.get("diagrams", []) or []
+    if diagrams:
+        lines += ["", "## 7. Diagrams"]
+        for d in diagrams:
+            lines += ["", f"### {d.get('id','')} — {d.get('title','')}"]
+            if d.get("type"):
+                lines.append(f"*Type:* {d.get('type')}")
+            if d.get("description"):
+                lines += ["", d.get("description", "")]
+            lines += ["", "```mermaid", d.get("mermaid", "").strip(), "```"]
 
     return "\n".join(lines) + "\n"
 
@@ -254,6 +299,24 @@ def write_version(
         shutil.rmtree(tmp_path, ignore_errors=True)
     tmp_path.mkdir(parents=True)
     try:
+        # Write each diagram's Mermaid source into a separate diagrams/ folder, and stamp the
+        # resulting filename back onto the diagram (so the API/UI can map id → file).
+        diagrams = data.get("diagrams", []) or []
+        if diagrams:
+            dg_dir = tmp_path / "diagrams"
+            dg_dir.mkdir(parents=True, exist_ok=True)
+            used: set[str] = set()
+            for i, d in enumerate(diagrams, start=1):
+                base = _safe_id(d.get("id", ""), f"DGM-{i:03d}")
+                fname = f"{base}.mmd"
+                n2 = 2
+                while fname in used:
+                    fname = f"{base}-{n2}.mmd"
+                    n2 += 1
+                used.add(fname)
+                d["file"] = f"diagrams/{fname}"
+                (dg_dir / fname).write_text(d.get("mermaid", ""), encoding="utf-8")
+
         (tmp_path / "srs.json").write_text(json.dumps(data, indent=2), encoding="utf-8")
         (tmp_path / "srs.md").write_text(md, encoding="utf-8")
         render_docx(data, md, tmp_path / "srs.docx")

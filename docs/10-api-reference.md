@@ -77,6 +77,14 @@ refresh mid-run replays the whole terminal.
 | GET | `/projects/{id}/versions/{n}/download/{fmt}` | active | `fmt` ∈ `md,json,docx,pdf` |
 | GET | `/projects/{id}/versions/{n}` | active | version metadata (from srs.json) |
 | GET | `/projects/{id}/versions/{n}/report` | active | run report: `{summary, events}` (cost/time + terminal log) for that version's job |
+| GET | `/projects/{id}/versions/{n}/diagrams` | active | list `[{id,title,type,description}]` of the version's Mermaid diagrams |
+| GET | `/projects/{id}/versions/{n}/diagrams/{diagramId}` | active | the Mermaid `.mmd` source for one diagram (download) |
+| GET | `/projects/{id}/versions/{n}/bundle.zip` | active | all resources for a version (md/json/docx/pdf + diagrams) as one ZIP |
+
+Diagrams are produced by the agent (validated via the Mermaid MCP), stored as
+`BA Output/<slug>/v<N>/diagrams/<id>.mmd` and in `srs.json` under `diagrams[]`. The frontend renders
+previews with a lazy-loaded mermaid.js and downloads each as `.mmd/.svg/.png` (SVG/PNG rendered
+in-browser), with select / download-all. Diagram ids are sanitized to be URL/filename-safe.
 
 ## Host storage
 

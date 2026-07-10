@@ -131,6 +131,20 @@
           "confidence": { "type": "number" }
         }
       }
+    },
+    "diagrams": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "title", "mermaid"],
+        "properties": {
+          "id": { "type": "string" },
+          "title": { "type": "string" },
+          "type": { "type": "string" },
+          "description": { "type": "string" },
+          "mermaid": { "type": "string" }
+        }
+      }
     }
   }
 }

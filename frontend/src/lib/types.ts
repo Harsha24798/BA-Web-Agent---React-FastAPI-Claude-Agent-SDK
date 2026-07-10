@@ -128,6 +128,13 @@ export interface TermLine {
   ts?: string;
 }
 
+export interface SrsDiagram {
+  id: string;
+  title: string;
+  type?: string;
+  description?: string;
+}
+
 export interface AppSettings {
   anthropic_key_set: boolean;
   anthropic_key_hint: string | null;
