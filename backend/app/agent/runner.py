@@ -49,6 +49,7 @@ async def run_agent(
     model: str,
     run_prompt: str,
     on_event: EventCB,
+    mcp_servers: dict | None = None,
 ) -> tuple[dict, str | None, RunMetrics]:
     """Execute a generation run. Returns (srs_json, sdk_session_id, metrics)."""
     from claude_agent_sdk import ClaudeAgentOptions, query
@@ -63,6 +64,8 @@ async def run_agent(
         include_partial_messages=True,
         permission_mode="bypassPermissions",  # headless: never wait for a permission prompt
     )
+    if mcp_servers:
+        opts["mcp_servers"] = mcp_servers
     cli = resolve_cli_path()
     if cli:
         opts["cli_path"] = cli

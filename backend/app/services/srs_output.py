@@ -18,6 +18,73 @@ from app.db.models import Project, SrsVersion
 logger = logging.getLogger("ba-agent.srs_output")
 
 
+_VALID_PRIORITIES = {"must", "should", "could", "wont"}
+_PRIORITY_ALIASES = {
+    "must have": "must", "must-have": "must", "high": "must", "critical": "must", "m": "must",
+    "should have": "should", "should-have": "should", "medium": "should", "med": "should",
+    "important": "should", "s": "should",
+    "could have": "could", "could-have": "could", "low": "could", "nice to have": "could",
+    "nice-to-have": "could", "optional": "could", "c": "could",
+    "won't": "wont", "won't have": "wont", "wont have": "wont", "will not have": "wont",
+    "out of scope": "wont", "w": "wont",
+}
+_VALID_REQ_TYPES = {"functional", "non_functional", "constraint", "assumption"}
+_TYPE_ALIASES = {
+    "non functional": "non_functional", "nonfunctional": "non_functional", "nfr": "non_functional",
+    "fr": "functional", "func": "functional", "functional requirement": "functional",
+    "constraints": "constraint", "assumptions": "assumption",
+}
+
+
+def _coerce_priority(v) -> str:
+    s = str(v or "").strip().lower()
+    if s in _VALID_PRIORITIES:
+        return s
+    return _PRIORITY_ALIASES.get(s, "should")
+
+
+def _coerce_req_type(v) -> str:
+    s = str(v or "").strip().lower()
+    if s in _VALID_REQ_TYPES:
+        return s
+    normalized = s.replace("-", " ").replace("_", " ").strip()
+    return _TYPE_ALIASES.get(s, _TYPE_ALIASES.get(normalized, "functional"))
+
+
+def normalize_srs(data: dict) -> dict:
+    """Fill sensible defaults and map common LLM variants so a single missing/loose field
+    (e.g. a requirement without `priority`) doesn't throw away an otherwise-good run. The schema
+    stays strict for genuinely broken output; this only heals the routine omissions."""
+    if not isinstance(data, dict):
+        return data
+    data.setdefault("schema_version", "1.0")
+
+    proj = data.get("project")
+    if not isinstance(proj, dict):
+        data["project"] = {"name": ""}
+    else:
+        proj.setdefault("name", "")
+
+    reqs = data.get("requirements")
+    reqs = reqs if isinstance(reqs, list) else []
+    fixed: list[dict] = []
+    for i, r in enumerate(reqs, start=1):
+        if not isinstance(r, dict):
+            continue
+        r.setdefault("id", f"FR-{i:03d}")
+        r["type"] = _coerce_req_type(r.get("type"))
+        title = r.get("title") or r.get("name") or ""
+        r["title"] = str(title).strip() or f"Requirement {r['id']}"
+        desc = r.get("description")
+        if desc is None:
+            desc = r.get("summary") or ""
+        r["description"] = str(desc)
+        r["priority"] = _coerce_priority(r.get("priority"))
+        fixed.append(r)
+    data["requirements"] = fixed
+    return data
+
+
 def validate_srs(data: dict) -> None:
     try:
         validate(instance=data, schema=load_schema())
@@ -163,6 +230,7 @@ def write_version(
     generated_by: str,
     job_id: str,
 ) -> SrsVersion:
+    normalize_srs(data)
     validate_srs(data)
 
     next_no = (db.scalar(

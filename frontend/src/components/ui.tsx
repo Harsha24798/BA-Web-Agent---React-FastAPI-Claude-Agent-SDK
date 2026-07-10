@@ -88,12 +88,12 @@ export function Modal({
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={onClose}>
-      <Card className="w-full max-w-lg" role="dialog" aria-modal="true" aria-label={title}>
-        <div className="flex items-center justify-between border-b border-slate-100 px-5 py-3" onClick={(e) => e.stopPropagation()}>
+      <Card className="flex max-h-[calc(100vh-4rem)] w-full max-w-lg flex-col" role="dialog" aria-modal="true" aria-label={title}>
+        <div className="flex shrink-0 items-center justify-between border-b border-slate-100 px-5 py-3" onClick={(e) => e.stopPropagation()}>
           <h3 className="font-semibold">{title}</h3>
           <button className="text-slate-400 hover:text-slate-600" aria-label="Close" onClick={onClose}>✕</button>
         </div>
-        <div className="p-5" onClick={(e) => e.stopPropagation()}>{children}</div>
+        <div className="overflow-y-auto p-5" onClick={(e) => e.stopPropagation()}>{children}</div>
       </Card>
     </div>
   );

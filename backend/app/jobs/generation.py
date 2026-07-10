@@ -13,7 +13,7 @@ from app.config import settings
 from app.db.database import SessionLocal
 from app.db.models import Document, GenerationJob, LlmModel, Project, User
 from app.jobs.manager import manager
-from app.services import srs_output, status as status_svc
+from app.services import mcp_service, srs_output, status as status_svc
 from app.services import email as email_service
 from app.services.ingestion import workspace_context_dir
 
@@ -96,6 +96,8 @@ async def run_job(job_id: str) -> None:
         template_id = template.id if template else None
         system_prompt = prompt_mod.build_system_prompt(db)
         tools = prompt_mod.enabled_tool_keys(db)
+        # Enabled+connected MCP servers and the tools granted to the triggering user.
+        mcp_servers, mcp_tool_refs = mcp_service.build_generation_mcp(db, trigger)
         source_hash = status_svc.combined_docs_hash(db, project.id)
         workspace = workspace_context_dir(project.id).parent  # cwd = workspaces/<id>
         run_prompt = prompt_mod.build_run_prompt()
@@ -149,14 +151,18 @@ async def run_job(job_id: str) -> None:
         await emit("preparing", 0.5, "Preparing workspace…")
         await log(f"model: {model_display}", kind="info")
         await log(f"tools: {', '.join(tools) or 'Read, Glob, Grep'}", kind="info")
+        if mcp_tool_refs:
+            await log(f"mcp: {', '.join(sorted(mcp_servers))} · {len(mcp_tool_refs)} tool(s) available",
+                      kind="mcp")
         await log(f"reading {len(docs)} document(s)…", kind="info")
         data, session_id, metrics = await run_agent(
             system_prompt=system_prompt,
-            allowed_tools=tools,
+            allowed_tools=tools + mcp_tool_refs,
             cwd=workspace,
             model=model_id,
             run_prompt=run_prompt,
             on_event=on_event,
+            mcp_servers=mcp_servers or None,
         )
 
         await emit("rendering_outputs", 0.2, "Rendering SRS documents…")

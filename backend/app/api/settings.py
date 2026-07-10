@@ -19,6 +19,7 @@ from app.schemas import (
     McpToggleIn,
     McpHeaderOut,
     McpToolOut,
+    McpToolToggleIn,
     MessageOut,
     SettingsOut,
     SmtpIn,
@@ -153,7 +154,11 @@ def _mcp_out(server: McpServer) -> McpServerOut:
             headers.append(McpHeaderOut(name=name, is_secret=True, value_hint=hint))
         else:
             headers.append(McpHeaderOut(name=name, is_secret=False, value=h.get("value")))
-    tools = [McpToolOut(**t) for t in json.loads(server.discovered_tools_json or "[]")]
+    tools = [
+        McpToolOut(name=t.get("name", ""), description=t.get("description", ""),
+                   is_enabled=t.get("is_enabled", True))
+        for t in json.loads(server.discovered_tools_json or "[]") if t.get("name")
+    ]
     return McpServerOut(
         id=server.id, name=server.name, slug=server.slug, transport=server.transport,
         url=server.url, headers=headers, status=server.status,
@@ -236,6 +241,24 @@ def update_mcp(server_id: str, body: McpServerIn, db: Session = Depends(get_db))
 def toggle_mcp(server_id: str, body: McpToggleIn, db: Session = Depends(get_db)):
     server = _get_server(db, server_id)
     server.is_enabled = body.is_enabled
+    server.updated_at = datetime.now(timezone.utc)
+    db.commit()
+    return _mcp_out(server)
+
+
+@router.post("/mcp/{server_id}/tools/toggle", response_model=McpServerOut)
+def toggle_mcp_tool(server_id: str, body: McpToolToggleIn, db: Session = Depends(get_db)):
+    """Enable/disable a single discovered tool on a connected MCP server."""
+    server = _get_server(db, server_id)
+    tools = json.loads(server.discovered_tools_json or "[]")
+    found = False
+    for t in tools:
+        if t.get("name") == body.tool_name:
+            t["is_enabled"] = body.is_enabled
+            found = True
+    if not found:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Tool not found on this server")
+    server.discovered_tools_json = json.dumps(tools)
     server.updated_at = datetime.now(timezone.utc)
     db.commit()
     return _mcp_out(server)

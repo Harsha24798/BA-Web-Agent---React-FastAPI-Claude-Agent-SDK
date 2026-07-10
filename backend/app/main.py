@@ -62,9 +62,29 @@ def _startup() -> None:
     logger.info("BA Agent backend started.")
 
 
+def _check_event_loop() -> None:
+    """On Windows, the SelectorEventLoop cannot spawn subprocesses, so the Claude Code CLI
+    (used for generation and MCP) fails with 'Failed to start Claude Code'. uvicorn selects it
+    whenever --reload or --workers>1 is used. Warn loudly with the fix."""
+    import asyncio
+    import sys
+    if sys.platform != "win32":
+        return
+    loop = asyncio.get_running_loop()
+    if type(loop).__name__ == "SelectorEventLoop":
+        logger.warning(
+            "EVENT LOOP: running on SelectorEventLoop — the Claude Code CLI subprocess CANNOT "
+            "launch (generation & MCP tests will fail with 'Failed to start Claude Code'). "
+            "This happens on Windows with --reload or --workers>1. Restart WITHOUT --reload: "
+            "`uvicorn app.main:app --port 8000`. For hot-reload, use: "
+            "`watchfiles \"uvicorn app.main:app --port 8000\" app`."
+        )
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     _startup()
+    _check_event_loop()
     yield
 
 
@@ -72,7 +92,11 @@ app = FastAPI(title="BA Agent WebApp", version="1.0.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.cors_list,
+    allow_origins=[
+        *settings.cors_list,
+        "https://ba-web-agent-react-fast-api-claude.vercel.app",
+    ],
+    allow_origin_regex=r"https://.*\.ngrok(?:-free)?\.(?:app|dev|io)",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

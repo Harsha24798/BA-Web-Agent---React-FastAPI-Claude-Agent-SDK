@@ -52,9 +52,15 @@ def build_system_prompt(db: Session) -> str:
         "\n\n---\n# OUTPUT CONTRACT (format requirement)\n"
         "When you are finished analyzing the documents, output the SRS as a SINGLE JSON object that "
         "validates against the JSON Schema below. Output the JSON inside one ```json fenced code "
-        "block as your final message, and nothing after it. Use stable requirement IDs like "
-        "FR-001 / NFR-001, MoSCoW priorities (must/should/could/wont), and include source_refs "
-        "(document + quote) for traceability. Do not invent requirements without a source.\n\n"
+        "block as your final message, and nothing after it.\n\n"
+        "EVERY item in `requirements` MUST include ALL of these fields (no exceptions):\n"
+        "  - `id`: a stable ID like FR-001 / NFR-001\n"
+        "  - `type`: exactly one of functional | non_functional | constraint | assumption\n"
+        "  - `title`: a short title\n"
+        "  - `description`: a full description\n"
+        "  - `priority`: exactly one MoSCoW value — must | should | could | wont\n"
+        "Also include `source_refs` (document + quote) for traceability where possible. "
+        "Do not invent requirements without a source.\n\n"
         "```json-schema\n" + schema + "\n```"
     )
     return "\n".join(parts)

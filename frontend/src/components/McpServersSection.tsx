@@ -100,6 +100,14 @@ export function McpServersSection({ reloadToken = 0, onChanged }: {
     load();
   }
 
+  async function toggleTool(s: McpServer, toolName: string, v: boolean) {
+    const r = await withToast(
+      () => apiPost<McpServer>(`/admin/settings/mcp/${s.id}/tools/toggle`, { tool_name: toolName, is_enabled: v }),
+      { error: "Update failed" },
+    );
+    if (r) { setViewTools(r); load(); }  // refresh modal + table from server truth
+  }
+
   async function confirmDelete() {
     if (!toDelete) return;
     setDeleting(true);
@@ -237,19 +245,27 @@ export function McpServersSection({ reloadToken = 0, onChanged }: {
         </div>
       </Modal>
 
-      {/* View tools modal */}
+      {/* View / manage tools modal */}
       <Modal open={!!viewTools} onClose={() => setViewTools(null)} title={`Tools — ${viewTools?.name}`}>
         {viewTools && viewTools.tools.length === 0 ? (
           <p className="text-sm text-slate-400">No tools discovered. Run a connection test first.</p>
         ) : (
-          <div className="space-y-2">
-            {viewTools?.tools.map((t) => (
-              <div key={t.name} className="rounded-lg border border-slate-100 p-3">
-                <p className="font-mono text-sm text-slate-800">{t.name}</p>
-                {t.description && <p className="mt-0.5 text-xs text-slate-500">{t.description}</p>}
-              </div>
-            ))}
-          </div>
+          <>
+            <p className="mb-3 text-xs text-slate-500">
+              Enable or disable individual tools. Disabled tools can't be granted to users.
+            </p>
+            <div className="space-y-2">
+              {viewTools?.tools.map((t) => (
+                <div key={t.name} className="flex items-start justify-between gap-3 rounded-lg border border-slate-100 p-3">
+                  <div className="min-w-0">
+                    <p className="font-mono text-sm text-slate-800">{t.name}</p>
+                    {t.description && <p className="mt-0.5 text-xs text-slate-500">{t.description}</p>}
+                  </div>
+                  <Toggle checked={t.is_enabled} onChange={(v) => viewTools && toggleTool(viewTools, t.name, v)} />
+                </div>
+              ))}
+            </div>
+          </>
         )}
       </Modal>
 

@@ -247,6 +247,11 @@ class McpToggleIn(BaseModel):
     is_enabled: bool
 
 
+class McpToolToggleIn(BaseModel):
+    tool_name: str = Field(min_length=1, max_length=300)
+    is_enabled: bool
+
+
 class McpHeaderOut(BaseModel):
     name: str
     is_secret: bool
@@ -257,6 +262,7 @@ class McpHeaderOut(BaseModel):
 class McpToolOut(BaseModel):
     name: str
     description: str = ""
+    is_enabled: bool = True
 
 
 class McpServerOut(BaseModel):

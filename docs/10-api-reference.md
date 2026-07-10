@@ -125,12 +125,16 @@ when no effective key exists (neither DB setting nor `.env`).
 | PUT | `/admin/settings/mcp/{id}` | edit (slug immutable; omitted secret kept; resets status) |
 | POST | `/admin/settings/mcp/{id}/toggle` | `{is_enabled}` |
 | POST | `/admin/settings/mcp/{id}/test` | live probe → status + discovered tools |
+| POST | `/admin/settings/mcp/{id}/tools/toggle` | `{tool_name, is_enabled}` enable/disable a single discovered tool (persists across re-tests) |
 | DELETE | `/admin/settings/mcp/{id}` | remove server + its per-user grants |
 | POST | `/admin/settings/check-all` | re-test API key + mail + all MCPs; returns `{settings, mcp}` |
 | GET/PUT | `/users/{id}/mcp-tools` | `{tool_refs: []}` per-user MCP tool grants (opt-in; `mcp__slug__tool`) |
 
-MCP tools are **not yet passed to the SRS-generation agent** — this is registry + access management;
-grants are stored for a future generation-wiring step.
+MCP tools **are now passed to the SRS-generation agent**: at generation, enabled + `connected`
+servers whose tools are both **enabled** (per-tool toggle) and **granted to the triggering user** are
+assembled into `ClaudeAgentOptions(mcp_servers=…)` and their `mcp__slug__tool` refs added to
+`allowed_tools` (`services/mcp_service.py::build_generation_mcp`). The live terminal shows a `🔌` line
+per MCP call. A user with no grants gets no MCP tools (opt-in).
 
 ## Conventions
 

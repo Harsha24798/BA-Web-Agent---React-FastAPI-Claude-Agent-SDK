@@ -259,14 +259,36 @@ export default function AdminUsers() {
           </p>
         ) : (
           <div className="space-y-4">
-            {mcpServers.map((srv) => (
+            {mcpServers.map((srv) => {
+              const enabledTools = srv.tools.filter((t) => t.is_enabled);
+              const refs = enabledTools.map((t) => `mcp__${srv.slug}__${t.name}`);
+              const allChecked = refs.length > 0 && refs.every((r) => mcpGrants.includes(r));
+              const someChecked = refs.some((r) => mcpGrants.includes(r));
+              const toggleAll = (on: boolean) => setMcpGrants((g) => {
+                const set = new Set(g);
+                refs.forEach((r) => (on ? set.add(r) : set.delete(r)));
+                return [...set];
+              });
+              return (
               <div key={srv.id}>
                 <p className="mb-1 text-sm font-semibold text-slate-700">{srv.name}</p>
-                {srv.tools.length === 0 ? (
-                  <p className="pl-1 text-xs text-slate-400">No tools discovered — run a connection test in Settings.</p>
+                {enabledTools.length === 0 ? (
+                  <p className="pl-1 text-xs text-slate-400">
+                    {srv.tools.length === 0
+                      ? "No tools discovered — run a connection test in Settings."
+                      : "No enabled tools — enable some in Settings → MCP → View tools."}
+                  </p>
                 ) : (
                   <div className="space-y-1.5">
-                    {srv.tools.map((t) => {
+                    <label className="flex cursor-pointer items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 p-2.5 transition hover:bg-slate-100">
+                      <input type="checkbox" className="h-4 w-4 accent-brand-500" checked={allChecked}
+                        ref={(el) => { if (el) el.indeterminate = someChecked && !allChecked; }}
+                        onChange={(e) => toggleAll(e.target.checked)} />
+                      <p className="text-sm font-medium text-slate-700">
+                        All <span className="text-xs font-normal text-slate-400">({enabledTools.length})</span>
+                      </p>
+                    </label>
+                    {enabledTools.map((t) => {
                       const ref = `mcp__${srv.slug}__${t.name}`;
                       const checked = mcpGrants.includes(ref);
                       return (
@@ -286,7 +308,8 @@ export default function AdminUsers() {
                   </div>
                 )}
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
         <div className="mt-3 text-xs text-slate-400">

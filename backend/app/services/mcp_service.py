@@ -1,7 +1,6 @@
 """MCP server config assembly + live connection probe.
 
-Secrets are decrypted just-in-time and never logged or returned to clients. Registry-only for
-now — the SRS-generation agent does not call MCP tools yet.
+Secrets are decrypted just-in-time and never logged or returned to clients.
 """
 from __future__ import annotations
 
@@ -11,7 +10,10 @@ import logging
 import re
 from datetime import datetime, timezone
 
-from app.db.models import McpServer
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+from app.db.models import McpServer, User, UserMcpTool
 from app.security.crypto import decrypt_secret
 from app.services.settings_service import effective_anthropic_key
 
@@ -149,8 +151,54 @@ async def probe_mcp_server(slug: str, server: McpServer) -> dict:
             "tools": tools}
 
 
+def build_generation_mcp(db: Session, user: User | None) -> tuple[dict, list[str]]:
+    """Assemble (mcp_servers_config, allowed_tool_refs) for a generation run.
+
+    Includes ONLY: servers that are enabled AND status=='connected', tools that are enabled
+    (per-tool toggle) AND granted to `user` (opt-in per-user grants). Returns empty when the
+    user has no grants — matching the opt-in MCP access model. Secrets are decrypted here and
+    live only in memory for the run.
+    """
+    if user is None:
+        return {}, []
+    granted = set(db.scalars(
+        select(UserMcpTool.tool_ref).where(UserMcpTool.user_id == user.id)
+    ))
+    if not granted:
+        return {}, []
+
+    servers = db.scalars(
+        select(McpServer).where(
+            McpServer.is_enabled == True,  # noqa: E712
+            McpServer.status == "connected",
+        )
+    )
+    mcp_servers: dict = {}
+    allowed_refs: list[str] = []
+    for s in servers:
+        tools = json.loads(s.discovered_tools_json or "[]")
+        server_refs = [
+            f"mcp__{s.slug}__{t['name']}"
+            for t in tools
+            if t.get("name") and t.get("is_enabled", True)
+            and f"mcp__{s.slug}__{t['name']}" in granted
+        ]
+        if server_refs:
+            entry, _secrets = server_config_dict(s)
+            mcp_servers[s.slug] = entry
+            allowed_refs.extend(server_refs)
+    return mcp_servers, allowed_refs
+
+
 def apply_probe_result(server: McpServer, result: dict) -> None:
     server.status = result["status"]
     server.last_error = result.get("error")
     server.last_checked_at = datetime.now(timezone.utc)
-    server.discovered_tools_json = json.dumps(result.get("tools") or [])
+    # Preserve each tool's admin enable/disable flag across re-probes (default enabled for new tools).
+    prev = {t.get("name"): t for t in json.loads(server.discovered_tools_json or "[]")}
+    tools = [
+        {"name": t.get("name"), "description": t.get("description", ""),
+         "is_enabled": prev.get(t.get("name"), {}).get("is_enabled", True)}
+        for t in (result.get("tools") or []) if t.get("name")
+    ]
+    server.discovered_tools_json = json.dumps(tools)

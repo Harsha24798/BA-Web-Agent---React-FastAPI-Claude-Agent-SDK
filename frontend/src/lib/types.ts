@@ -94,6 +94,7 @@ export interface McpHeader {
 export interface McpTool {
   name: string;
   description: string;
+  is_enabled: boolean;
 }
 
 export interface McpServer {
