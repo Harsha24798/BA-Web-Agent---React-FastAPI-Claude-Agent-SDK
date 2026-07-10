@@ -51,6 +51,7 @@ function DiagramModal({ projectId, versionNo, diagram, onClose }: {
   projectId: string; versionNo: number; diagram: SrsDiagram; onClose: () => void;
 }) {
   const [st, setSt] = useState<{ svg?: string; source?: string; error?: string }>({});
+  const [dl, setDl] = useState<string | null>(null); // which download button is busy
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
@@ -84,16 +85,22 @@ function DiagramModal({ projectId, versionNo, diagram, onClose }: {
     return () => { cancelled = true; };
   }, [projectId, versionNo, diagram.id]);
 
-  const dlMmd = () =>
-    downloadFile(`/projects/${projectId}/versions/${versionNo}/diagrams/${encodeURIComponent(diagram.id)}`, `${diagram.id}.mmd`);
-  const dlSvg = () => {
+  async function run(key: string, fn: () => void | Promise<void>) {
+    if (dl) return; // one download at a time — guard double-clicks
+    setDl(key);
+    try { await fn(); } catch (e: any) { toast.error(e?.message || "Download failed"); }
+    finally { setDl(null); }
+  }
+  const dlMmd = () => run("mmd", () =>
+    downloadFile(`/projects/${projectId}/versions/${versionNo}/diagrams/${encodeURIComponent(diagram.id)}`, `${diagram.id}.mmd`));
+  const dlSvg = () => run("svg", () => {
     if (!st.svg) { toast.error("Not rendered yet."); return; }
     triggerBlob(new Blob([st.svg], { type: "image/svg+xml;charset=utf-8" }), `${diagram.id}.svg`);
-  };
-  const dlPng = async () => {
+  });
+  const dlPng = () => run("png", async () => {
     if (!st.svg) { toast.error("Not rendered yet."); return; }
     triggerBlob(await svgToPng(st.svg), `${diagram.id}.png`);
-  };
+  });
 
   const btn = "flex items-center gap-1 rounded px-2 py-1 text-xs text-slate-600 hover:bg-slate-100 disabled:opacity-40";
 
@@ -109,9 +116,12 @@ function DiagramModal({ projectId, versionNo, diagram, onClose }: {
             </p>
           </div>
           <div className="flex shrink-0 items-center gap-1">
-            <button className={btn} title="Download Mermaid source" onClick={dlMmd}><FileCode className="h-3.5 w-3.5" /> mmd</button>
-            <button className={btn} title="Download SVG" onClick={dlSvg} disabled={!st.svg}><ImageIcon className="h-3.5 w-3.5" /> svg</button>
-            <button className={btn} title="Download PNG" onClick={dlPng} disabled={!st.svg}><ImageIcon className="h-3.5 w-3.5" /> png</button>
+            <button className={btn} title="Download Mermaid source" onClick={dlMmd} disabled={!!dl}>
+              {dl === "mmd" ? <Spinner /> : <FileCode className="h-3.5 w-3.5" />} mmd</button>
+            <button className={btn} title="Download SVG" onClick={dlSvg} disabled={!st.svg || !!dl}>
+              {dl === "svg" ? <Spinner /> : <ImageIcon className="h-3.5 w-3.5" />} svg</button>
+            <button className={btn} title="Download PNG" onClick={dlPng} disabled={!st.svg || !!dl}>
+              {dl === "png" ? <Spinner /> : <ImageIcon className="h-3.5 w-3.5" />} png</button>
             <button className="ml-1 text-slate-400 hover:text-slate-600" aria-label="Close" onClick={onClose}><X className="h-5 w-5" /></button>
           </div>
         </div>

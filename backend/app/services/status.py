@@ -46,6 +46,15 @@ def active_job(db: Session, project_id: str) -> GenerationJob | None:
     )
 
 
+def global_active_job(db: Session) -> GenerationJob | None:
+    """The single system-wide active generation (if any) — powers the global one-at-a-time lock."""
+    return db.scalar(
+        select(GenerationJob)
+        .where(GenerationJob.status.in_(["queued", "running"]))
+        .order_by(GenerationJob.created_at)
+    )
+
+
 def host_sync_badge(db: Session, project: Project) -> str:
     """not_sent | synced | out_of_date (project-level)."""
     version = current_version(db, project)

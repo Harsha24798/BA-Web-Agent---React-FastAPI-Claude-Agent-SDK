@@ -10,13 +10,13 @@ from sqlalchemy.orm import Session
 from app.auth.deps import require_active, require_admin
 from app.config import settings
 from app.db.database import get_db
-from app.db.models import Document, Project, SrsVersion, User
+from app.db.models import Document, Project, RegenRequest, SrsVersion, User
+from app.api.srs import version_out
 from app.schemas import (
     DocumentOut,
     ProjectCreateIn,
     ProjectDetailOut,
     ProjectOut,
-    VersionOut,
 )
 from app.services import status as status_svc
 from app.services.ingestion import safe_slug
@@ -84,10 +84,18 @@ def get_project(project_id: str, user: User = Depends(require_active),
         select(SrsVersion).where(SrsVersion.project_id == project_id)
         .order_by(SrsVersion.version_no.desc())
     )
+    # Current user's regenerate-access state for this project (used→none: they can request again).
+    req = db.scalar(
+        select(RegenRequest).where(
+            RegenRequest.user_id == user.id, RegenRequest.project_id == project_id)
+        .order_by(RegenRequest.created_at.desc())
+    )
+    my_regen = req.status if req and req.status in ("pending", "approved", "rejected") else "none"
     return ProjectDetailOut(
         **base.model_dump(),
         documents=[DocumentOut.model_validate(d) for d in docs],
-        versions=[VersionOut.model_validate(v) for v in versions],
+        versions=[version_out(db, v) for v in versions],
+        my_regen_status=my_regen,
     )
 
 

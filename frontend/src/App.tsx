@@ -15,6 +15,7 @@ const AdminModels = lazy(() => import("./pages/AdminModels"));
 const AdminMasterPrompt = lazy(() => import("./pages/AdminMasterPrompt"));
 const AdminTools = lazy(() => import("./pages/AdminTools"));
 const AdminTemplate = lazy(() => import("./pages/AdminTemplate"));
+const AdminRequests = lazy(() => import("./pages/AdminRequests"));
 const Settings = lazy(() => import("./pages/Settings"));
 
 function Admin({ children }: { children: React.ReactNode }) {
@@ -43,6 +44,7 @@ export default function App() {
       <Route path="/admin/master-prompt" element={<Admin><AdminMasterPrompt /></Admin>} />
       <Route path="/admin/tools" element={<Admin><AdminTools /></Admin>} />
       <Route path="/admin/template" element={<Admin><AdminTemplate /></Admin>} />
+      <Route path="/admin/requests" element={<Admin><AdminRequests /></Admin>} />
       <Route path="/admin/settings" element={<Admin><Settings /></Admin>} />
 
       <Route path="/" element={<Navigate to="/projects" replace />} />

@@ -296,3 +296,19 @@ class UserMcpTool(Base):
     __table_args__ = (
         Index("ux_user_mcp_tool", "user_id", "tool_ref", unique=True),
     )
+
+
+class RegenRequest(Base):
+    """A user's request to regenerate a project's SRS. Single-use: an 'approved' request is
+    consumed (→ 'used') the next time that user regenerates the project. Plain id columns (no FK)
+    so the record survives user/project deletion and never blocks it."""
+
+    __tablename__ = "regen_requests"
+
+    id: Mapped[str] = mapped_column(String, primary_key=True, default=_uuid)
+    user_id: Mapped[str] = mapped_column(String, index=True)
+    project_id: Mapped[str] = mapped_column(String, index=True)
+    status: Mapped[str] = mapped_column(String, default="pending")  # pending|approved|rejected|used
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now)
+    decided_by: Mapped[str | None] = mapped_column(String, nullable=True)
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)

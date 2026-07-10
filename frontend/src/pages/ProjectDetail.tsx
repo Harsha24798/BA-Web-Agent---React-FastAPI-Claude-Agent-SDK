@@ -1,12 +1,12 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { AlertTriangle, Download, FileText, Trash2, Sparkles, RefreshCw } from "lucide-react";
+import { AlertTriangle, Clock, Download, FileText, Trash2, Sparkles, RefreshCw } from "lucide-react";
 import { apiDelete, apiGet, apiPost, downloadFile } from "../lib/api";
 import { toast, withToast } from "../lib/toast";
-import type { DocumentItem, Job, ProjectDetail as PD } from "../lib/types";
+import type { DocumentItem, GenerationActive, Job, ProjectDetail as PD } from "../lib/types";
 import { useAuth } from "../auth/AuthContext";
 import { Layout } from "../components/Layout";
-import { Button, Card, Modal, Spinner } from "../components/ui";
+import { Button, Card, ConfirmDialog, Modal, Spinner } from "../components/ui";
 import { HostBadge, StatusBadge, UploadBadge } from "../components/StatusBadge";
 import { FileUpload } from "../components/FileUpload";
 import { ModelSelect } from "../components/ModelSelect";
@@ -23,7 +23,11 @@ export default function ProjectDetail() {
   const [jobId, setJobId] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
   const [docToDelete, setDocToDelete] = useState<DocumentItem | null>(null);
-  const [downloading, setDownloading] = useState(false);
+  const [dlFmt, setDlFmt] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [requesting, setRequesting] = useState(false);
+  const [globalActive, setGlobalActive] = useState<GenerationActive | null>(null);
 
   async function load() {
     try {
@@ -38,13 +42,27 @@ export default function ProjectDetail() {
 
   useEffect(() => { load(); }, [id]);
 
+  // Poll the system-wide generation lock so we can block generating while another user runs.
+  useEffect(() => {
+    let stop = false;
+    const tick = async () => {
+      try { const a = await apiGet<GenerationActive>("/generation/active"); if (!stop) setGlobalActive(a); }
+      catch { /* ignore */ }
+    };
+    tick();
+    const t = setInterval(tick, 5000);
+    return () => { stop = true; clearInterval(t); };
+  }, []);
+
   if (!project) {
     return <Layout><div className="flex items-center gap-2 text-slate-500"><Spinner /> Loading…</div></Layout>;
   }
 
   const hasVersion = project.current_version_no != null;
-  const canGenerate = !hasVersion && !jobId;
-  const canRegenerate = isAdmin && hasVersion && !jobId;
+  const globalBusy = !!globalActive?.busy && globalActive.job_id !== jobId;
+  const canGenerate = !hasVersion && !jobId && !globalBusy;
+  const canRegenerate = isAdmin && hasVersion && !jobId && !globalBusy;
+  const canUserRegen = !isAdmin && hasVersion && !jobId && !globalBusy && project.my_regen_status === "approved";
 
   async function startGeneration(regen: boolean) {
     if (!model) { toast.error("Select a model first"); return; }
@@ -75,22 +93,34 @@ export default function ProjectDetail() {
   }
 
   async function download(versionNo: number, fmt: string) {
-    setDownloading(true);
+    if (dlFmt) return; // guard double-clicks
+    setDlFmt(fmt);
     try {
       await downloadFile(`/projects/${id}/versions/${versionNo}/download/${fmt}`, `srs-v${versionNo}.${fmt}`);
+      toast.success(`Downloaded srs-v${versionNo}.${fmt}`);
     } catch (e: any) {
-      toast.error(e.message);
+      toast.error(e.message || "Download failed");
     } finally {
-      setDownloading(false);
+      setDlFmt(null);
     }
   }
 
+  async function requestRegen() {
+    setRequesting(true);
+    await withToast(() => apiPost(`/projects/${id}/regen-request`), {
+      success: "Regenerate access requested. An admin will review it.", error: "Request failed",
+    });
+    setRequesting(false);
+    load();
+  }
+
   async function deleteProject() {
-    if (!confirm("Delete this project and all its files?")) return;
-    await withToast(() => apiDelete(`/projects/${id}`), {
+    setDeleting(true);
+    const r = await withToast(() => apiDelete(`/projects/${id}`), {
       success: "Project deleted.", error: "Delete failed",
     });
-    nav("/projects");
+    setDeleting(false);
+    if (r) nav("/projects");
   }
 
   const v = project.current_version_no;
@@ -109,7 +139,7 @@ export default function ProjectDetail() {
           </div>
         </div>
         {isAdmin && (
-          <Button variant="danger" onClick={deleteProject}><Trash2 className="h-4 w-4" /> Delete project</Button>
+          <Button variant="danger" onClick={() => setConfirmDelete(true)}><Trash2 className="h-4 w-4" /> Delete project</Button>
         )}
       </div>
 
@@ -149,6 +179,19 @@ export default function ProjectDetail() {
           ) : (
             <div className="space-y-4">
               <ModelSelect value={model} onChange={setModel} />
+
+              {/* System-wide lock: someone else is generating */}
+              {globalBusy && (
+                <div className="flex items-start gap-2 rounded-lg bg-amber-50 p-3 text-sm text-amber-800">
+                  <Clock className="mt-0.5 h-4 w-4 shrink-0" />
+                  <span>
+                    <span className="font-medium">{globalActive?.user_name || "Another user"}</span> is
+                    generating an SRS{globalActive?.project_name ? ` for "${globalActive.project_name}"` : ""} —
+                    please wait until it completes.
+                  </span>
+                </div>
+              )}
+
               {canGenerate && (
                 <Button onClick={() => startGeneration(false)} disabled={starting} className="w-full">
                   <Sparkles className="h-4 w-4" /> {starting ? "Starting…" : "Generate SRS"}
@@ -159,10 +202,28 @@ export default function ProjectDetail() {
                   <RefreshCw className="h-4 w-4" /> {starting ? "Starting…" : "Regenerate (new version)"}
                 </Button>
               )}
-              {hasVersion && !isAdmin && (
-                <p className="rounded-lg bg-slate-50 p-3 text-sm text-slate-500">
-                  This project already has an SRS (v{v}). Ask an admin to regenerate.
-                </p>
+
+              {/* Non-admin regenerate: request → admin approves (single-use) → regenerate */}
+              {!isAdmin && hasVersion && !globalBusy && (
+                canUserRegen ? (
+                  <Button onClick={() => startGeneration(false)} disabled={starting} className="w-full">
+                    <RefreshCw className="h-4 w-4" /> {starting ? "Starting…" : "Regenerate (access granted)"}
+                  </Button>
+                ) : project.my_regen_status === "pending" ? (
+                  <p className="rounded-lg bg-slate-50 p-3 text-sm text-slate-500">
+                    Regenerate access requested — awaiting admin approval.
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    <p className="rounded-lg bg-slate-50 p-3 text-sm text-slate-500">
+                      This project already has an SRS (v{v}).
+                      {project.my_regen_status === "rejected" && " Your last request was declined."}
+                    </p>
+                    <Button variant="secondary" onClick={requestRegen} disabled={requesting} className="w-full">
+                      <RefreshCw className="h-4 w-4" /> {requesting ? "Requesting…" : "Request regenerate access"}
+                    </Button>
+                  </div>
+                )
               )}
             </div>
           )}
@@ -172,9 +233,9 @@ export default function ProjectDetail() {
               <h3 className="mb-2 text-sm font-semibold text-slate-700">Latest SRS — v{v}</h3>
               <div className="flex flex-wrap gap-2">
                 {["md", "json", "docx", "pdf"].map((fmt) => (
-                  <Button key={fmt} variant="secondary" disabled={downloading}
+                  <Button key={fmt} variant="secondary" disabled={dlFmt !== null}
                     onClick={() => download(v!, fmt)}>
-                    <Download className="h-4 w-4" /> {fmt.toUpperCase()}
+                    {dlFmt === fmt ? <Spinner /> : <Download className="h-4 w-4" />} {fmt.toUpperCase()}
                   </Button>
                 ))}
               </div>
@@ -202,6 +263,16 @@ export default function ProjectDetail() {
           </div>
         </div>
       )}
+
+      <ConfirmDialog
+        open={confirmDelete}
+        title="Delete this project?"
+        message={<>Delete <span className="font-semibold text-slate-800">{project.name}</span> and all its files, versions, and diagrams? This can't be undone.</>}
+        confirmLabel="Delete project"
+        busy={deleting}
+        onConfirm={deleteProject}
+        onCancel={() => setConfirmDelete(false)}
+      />
 
       <Modal open={!!docToDelete} onClose={() => setDocToDelete(null)} title="Delete this document?">
         <div className="flex gap-3">

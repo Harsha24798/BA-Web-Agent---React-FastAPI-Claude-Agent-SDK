@@ -64,6 +64,12 @@ Auth levels: **public**, **active** (any active user), **admin**. FastAPI serves
 | GET | `/projects/{id}/jobs/{jobId}` | active | job status snapshot |
 | GET | `/projects/{id}/jobs/{jobId}/stream` | active | **SSE** — replays persisted progress + terminal log (`log`/`summary` events) then tails live; `done` carries the cost summary |
 | POST | `/projects/{id}/jobs/{jobId}/cancel` | active (owner/admin) | cancel a running job |
+| GET | `/generation/active` | active | system-wide lock status `{busy, job_id, project_id, project_name, user_name}` — only ONE generation runs at a time across all projects/users |
+| POST | `/projects/{id}/regen-request` | active | non-admin asks an admin for single-use permission to regenerate |
+
+Generation is **globally serialized**: `_start_job` rejects with 409 ("<name> is currently generating
+an SRS for '<project>'…") if any job is queued/running anywhere. Non-admins may regenerate only with
+an admin-approved, **single-use** `RegenRequest` (consumed on the next regenerate).
 
 The stream emits typed SSE events: `progress` (phase/percent), `log` (a terminal line: `kind` ∈
 info/tool/mcp/text/done/error), `summary` (cost/time), and `done`. Lines persist to `job_events` so a
@@ -108,6 +114,20 @@ in-browser), with select / download-all. Diagram ids are sanitized to be URL/fil
 | POST | `/admin/tools` | add tool `{tool_key, display_name, description}` |
 | PUT | `/admin/tools/{id}` | edit / enable / disable |
 | DELETE | `/admin/tools/{id}` | remove |
+
+## Admin extras
+
+| Method | Path | Notes |
+|--------|------|-------|
+| GET | `/admin/regen-requests` | `?project_id=&status_filter=` list regenerate requests (user + project names) |
+| POST | `/admin/regen-requests/{id}/approve` | grant single-use regenerate access |
+| POST | `/admin/regen-requests/{id}/reject` | decline the request |
+| GET | `/admin/downloads` | `?project_id=&user_id=` download audit log (latest 500) `{user_name, project_name, version_no, fmt, created_at}` |
+
+Every download (`download/{fmt}`, `bundle.zip`, `diagrams/{id}`) writes a `DownloadAudit` row
+(best-effort). `VersionOut` now carries `generated_by` + `generated_by_name` (the author). `bundle.zip`
+returns a plain bytes `Response` with `Content-Length` (a streamed response caused a false
+"Failed to fetch" in the browser).
 
 ## Settings (admin)
 

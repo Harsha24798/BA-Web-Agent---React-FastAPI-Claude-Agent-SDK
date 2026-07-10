@@ -88,6 +88,8 @@ class VersionOut(BaseModel):
     created_at: datetime
     host_sync_status: str
     host_synced_at: datetime | None = None
+    generated_by: str | None = None
+    generated_by_name: str | None = None
 
     class Config:
         from_attributes = True
@@ -109,6 +111,27 @@ class ProjectOut(BaseModel):
 class ProjectDetailOut(ProjectOut):
     documents: list[DocumentOut] = []
     versions: list[VersionOut] = []
+    my_regen_status: str = "none"  # none | pending | approved | rejected (current user, this project)
+
+
+# ---------- generation lock / regen requests / download audit ----------
+class GenerationActiveOut(BaseModel):
+    busy: bool = False
+    job_id: str | None = None
+    project_id: str | None = None
+    project_name: str | None = None
+    user_name: str | None = None
+
+
+class RegenRequestOut(BaseModel):
+    id: str
+    user_id: str
+    user_name: str
+    project_id: str
+    project_name: str
+    status: str
+    created_at: datetime
+    decided_at: datetime | None = None
 
 
 # ---------- models ----------

@@ -46,11 +46,33 @@ export interface SrsVersion {
   created_at: string;
   host_sync_status: string;
   host_synced_at: string | null;
+  generated_by?: string | null;
+  generated_by_name?: string | null;
+}
+
+export interface GenerationActive {
+  busy: boolean;
+  job_id: string | null;
+  project_id: string | null;
+  project_name: string | null;
+  user_name: string | null;
+}
+
+export interface RegenRequestItem {
+  id: string;
+  user_id: string;
+  user_name: string;
+  project_id: string;
+  project_name: string;
+  status: string; // pending | approved | rejected | used
+  created_at: string;
+  decided_at: string | null;
 }
 
 export interface ProjectDetail extends Project {
   documents: DocumentItem[];
   versions: SrsVersion[];
+  my_regen_status: string; // none | pending | approved | rejected (current user, this project)
 }
 
 export interface LlmModel {

@@ -111,6 +111,7 @@ def health() -> dict:
 
 # ----- routers -----
 from app.api import (  # noqa: E402
+    admin_extra,
     agent_config,
     auth,
     documents,
@@ -130,8 +131,10 @@ app.include_router(projects.router)
 app.include_router(documents.router)
 app.include_router(models.router)
 app.include_router(generation.router)
+app.include_router(generation.gen_status_router)
 app.include_router(streaming.router)
 app.include_router(srs.router)
 app.include_router(storage.router)
 app.include_router(agent_config.router)
 app.include_router(settings_api.router)
+app.include_router(admin_extra.router)

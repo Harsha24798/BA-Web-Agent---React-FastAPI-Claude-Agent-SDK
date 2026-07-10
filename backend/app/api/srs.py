@@ -7,7 +7,7 @@ import zipfile
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi.responses import FileResponse, Response
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -17,6 +17,19 @@ from app.db.models import JobEvent, Project, SrsVersion, User
 from app.schemas import VersionOut
 
 router = APIRouter(prefix="/projects", tags=["srs"])
+
+
+def version_out(db: Session, v: SrsVersion) -> VersionOut:
+    """VersionOut with the generator's name resolved (author)."""
+    name = None
+    if v.generated_by:
+        u = db.get(User, v.generated_by)
+        name = u.full_name if u else None
+    return VersionOut(
+        id=v.id, version_no=v.version_no, model_id=v.model_id, created_at=v.created_at,
+        host_sync_status=v.host_sync_status, host_synced_at=v.host_synced_at,
+        generated_by=v.generated_by, generated_by_name=name,
+    )
 
 _FMT = {
     "md": ("md_path", "text/markdown"),
@@ -39,7 +52,7 @@ def list_versions(project_id: str, user: User = Depends(require_active),
                   db: Session = Depends(get_db)):
     rows = db.scalars(select(SrsVersion).where(SrsVersion.project_id == project_id)
                       .order_by(SrsVersion.version_no.desc()))
-    return [VersionOut.model_validate(v) for v in rows]
+    return [version_out(db, v) for v in rows]
 
 
 @router.get("/{project_id}/versions/{n}")
@@ -129,12 +142,14 @@ def download_bundle(project_id: str, n: int, user: User = Depends(require_active
             arc = f"diagrams/{d.get('id')}.mmd"
             if d.get("id") and d.get("mermaid") and arc not in added:
                 z.writestr(arc, d["mermaid"])
-    buf.seek(0)
+    data = buf.getvalue()
 
     proj = db.get(Project, project_id)
     fname = f"{(proj.slug if proj else 'srs')}-v{n}.zip"
-    return StreamingResponse(buf, media_type="application/zip",
-                             headers={"Content-Disposition": f'attachment; filename="{fname}"'})
+    # Plain bytes Response (sets Content-Length) — a StreamingResponse without it makes the
+    # browser's fetch/blob reject with a false "Failed to fetch" after the bytes arrive.
+    return Response(content=data, media_type="application/zip",
+                    headers={"Content-Disposition": f'attachment; filename="{fname}"'})
 
 
 @router.get("/{project_id}/versions/{n}/download/{fmt}")
