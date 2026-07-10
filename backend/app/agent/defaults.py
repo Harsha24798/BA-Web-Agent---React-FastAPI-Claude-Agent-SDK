@@ -28,6 +28,25 @@ Specification (SRS) that an Odoo development team can build from.
 # Odoo context
 Assume the target platform is Odoo. Note the likely Odoo version if the documents imply one, and the
 Odoo modules touched, in the `meta` section.
+
+# Diagrams
+Produce clear **Mermaid** diagrams for the key views of the system and place them in the `diagrams`
+array of the output JSON. Include, when the material supports them:
+- a **system context / high-level flow** diagram (`flowchart`),
+- a **data model** diagram (`erDiagram`) for the main entities,
+- one or more **key business workflow** diagrams (`sequenceDiagram` or `flowchart`).
+
+**At minimum, always include at least one diagram** (a system-context or main-workflow diagram).
+
+For EACH diagram:
+1. Write the Mermaid source.
+2. **Validate it with the Mermaid MCP tool `validate_and_render_mermaid_diagram`** if it is available.
+   If it reports an error, fix the Mermaid and validate again. Only include a diagram once it validates
+   cleanly (or, if the Mermaid MCP tool is not available, once you are confident the syntax is valid).
+3. Add it to `diagrams[]` with: `id` (`DGM-001`, `DGM-002`, …), `title`, `type` (e.g. `flowchart`,
+   `erDiagram`, `sequenceDiagram`), a short `description`, and the validated `mermaid` source.
+
+Keep each diagram focused and readable. Prefer several small, clear diagrams over one giant diagram.
 """
 
 DEFAULT_SRS_TEMPLATE = """\
@@ -48,4 +67,7 @@ Produce an SRS covering these sections (map them to the JSON output fields):
 7. **Open Questions** — anything ambiguous or missing that needs client clarification. (→
    `open_questions`)
 8. **Traceability** — requirement → source document mapping. (→ `traceability`)
+9. **Diagrams** — Mermaid diagrams for the key views: system context / high-level flow, the data
+   model (ER) of the main entities, and the important business workflows. Each diagram has a stable
+   ID (`DGM-001`, …), a title, and a short explanation. (→ `diagrams`)
 """

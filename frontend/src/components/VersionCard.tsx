@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Download, FileArchive } from "lucide-react";
 import { apiGet, downloadFile } from "../lib/api";
+import { fmtDateTime } from "../lib/datetime";
 import { toast } from "../lib/toast";
 import type { RunSummary, SrsVersion } from "../lib/types";
 import { Button, Card, Spinner } from "./ui";
@@ -47,7 +48,7 @@ export function VersionCard({ projectId, projectName, version }: {
             )}
             <span className="font-mono">{version.model_id}</span>
             <span>·</span>
-            <span>{new Date(version.created_at).toLocaleString()}</span>
+            <span>{fmtDateTime(version.created_at)}</span>
             <HostBadge status={version.host_sync_status} />
           </div>
         </div>

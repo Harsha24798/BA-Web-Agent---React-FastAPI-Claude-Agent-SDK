@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Plus } from "lucide-react";
 import { apiGet, apiPost } from "../lib/api";
+import { fmtDate } from "../lib/datetime";
 import { toast } from "../lib/toast";
 import type { Project } from "../lib/types";
 import { Layout } from "../components/Layout";
@@ -65,7 +66,7 @@ export default function Projects() {
               <Card className="h-full p-5 transition hover:shadow-md">
                 <h3 className="mb-1 font-semibold text-slate-800">{p.name}</h3>
                 <p className="mb-3 text-xs text-slate-400">
-                  Created {new Date(p.created_at).toLocaleDateString()}
+                  Created {fmtDate(p.created_at)}
                 </p>
                 <div className="flex flex-wrap gap-2">
                   <UploadBadge count={p.document_count} />

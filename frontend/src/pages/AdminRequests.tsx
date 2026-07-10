@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Check, X } from "lucide-react";
 import { apiGet, apiPost } from "../lib/api";
+import { fmtDateTime } from "../lib/datetime";
 import { toast } from "../lib/toast";
 import type { Project, RegenRequestItem } from "../lib/types";
 import { Layout } from "../components/Layout";
@@ -86,7 +87,7 @@ export default function AdminRequests() {
                   <tr key={r.id} className="border-t border-slate-100 transition hover:bg-slate-50">
                     <td className="py-2 font-medium text-slate-800">{r.user_name}</td>
                     <td className="text-slate-600">{r.project_name}</td>
-                    <td className="text-xs text-slate-400">{new Date(r.created_at).toLocaleString()}</td>
+                    <td className="text-xs text-slate-400">{fmtDateTime(r.created_at)}</td>
                     <td>
                       <span className={`rounded-full px-2 py-0.5 text-xs font-medium capitalize ${STATUS_STYLE[r.status] || ""}`}>
                         {r.status}
