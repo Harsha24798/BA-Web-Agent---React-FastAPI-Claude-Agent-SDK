@@ -92,11 +92,7 @@ app = FastAPI(title="BA Agent WebApp", version="1.0.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        *settings.cors_list,
-        "https://ba-web-agent-react-fast-api-claude.vercel.app",
-    ],
-    allow_origin_regex=r"https://.*\.ngrok(?:-free)?\.(?:app|dev|io)",
+    allow_origins=settings.cors_list,  # set CORS_ORIGINS in .env (comma-separated)
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
